@@ -1,0 +1,6 @@
+{
+  "name": "學校課外活動小組支援與點名管理系統",
+  "description": "提供學校各項課外活動班、支援小組管理、學生名單、地點時段場地總表、互動點名、出席率統計分析、權限控制（訪客/教師/管理員）、Excel導入導出及 Google Drive 雲端備份同步管理功能",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
