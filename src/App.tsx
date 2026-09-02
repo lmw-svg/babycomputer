@@ -67,8 +67,12 @@ export const App: React.FC = () => {
         setMaskPhoneState(newData.settings.maskPhone);
       }
     });
+
+    // Also request immediate sync check on mount
+    realtimeSync.syncWithCloud(true);
+
     return () => unsubData();
-  }, [data]);
+  }, []);
 
   // Navigation & Role State (Default to guest, requires password to switch to teacher/head-teacher/admin)
   const [currentTab, setCurrentTab] = useState<NavigationTab>('dashboard');

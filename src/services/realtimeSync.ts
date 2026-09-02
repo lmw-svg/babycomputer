@@ -1,6 +1,7 @@
 import { initializeApp, getApps, getApp } from 'firebase/app';
 import { 
   getFirestore, 
+  initializeFirestore,
   doc, 
   onSnapshot, 
   setDoc, 
@@ -33,8 +34,9 @@ class RealtimeSyncManager {
   private dataListeners: Set<(data: AppDataState) => void> = new Set();
   private syncSuccessListeners: Set<(timestamp: Date) => void> = new Set();
 
-  private isLocalDefault: boolean = false;
-  private localLastUpdated: number = 0;
+  // Local pending user edit tracking (prevents stale local cache from overriding cloud)
+  private hasPendingLocalEdits: boolean = false;
+  private lastLocalEditTime: number = 0;
 
   private currentInfo: SyncInfo = {
     status: 'connected',
@@ -51,21 +53,11 @@ class RealtimeSyncManager {
   }
 
   private init() {
-    // Read initial local timestamp and default state flag
-    try {
-      const initialLocal = loadStoredData();
-      this.isLocalDefault = !!(initialLocal.isInitialDefault || !initialLocal.lastUpdated);
-      this.localLastUpdated = initialLocal.lastUpdated || 0;
-    } catch (e) {
-      this.isLocalDefault = true;
-      this.localLastUpdated = 0;
-    }
-
     // 1. Initialize Network Status listeners
     if (typeof window !== 'undefined') {
       window.addEventListener('online', () => {
         this.updateStatus('connected');
-        this.syncWithCloud();
+        this.syncWithCloud(true);
       });
 
       window.addEventListener('offline', () => {
@@ -77,7 +69,7 @@ class RealtimeSyncManager {
       }
     }
 
-    // 2. Initialize BroadcastChannel for cross-tab realtime sync
+    // 2. Initialize BroadcastChannel for cross-tab realtime sync (same browser)
     if (typeof window !== 'undefined' && 'BroadcastChannel' in window) {
       try {
         this.broadcastChannel = new BroadcastChannel(BROADCAST_CHANNEL_NAME);
@@ -106,9 +98,15 @@ class RealtimeSyncManager {
     // 3. Initialize Firebase Firestore real-time listener and do immediate cloud pull
     try {
       const app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApp();
-      this.firestore = getFirestore(app);
+      try {
+        this.firestore = initializeFirestore(app, {
+          ignoreUndefinedProperties: true,
+        });
+      } catch {
+        this.firestore = getFirestore(app);
+      }
       this.setupFirestoreListener();
-      // Fetch immediately on startup
+      // Fetch immediately on startup to ensure mobile & all browsers show latest cloud data
       this.fetchInitialCloudState();
     } catch (e) {
       console.warn('Firebase Firestore initialization notice:', e);
@@ -116,6 +114,10 @@ class RealtimeSyncManager {
     }
   }
 
+  /**
+   * Fetches the latest master cloud state from Firestore on page initialization.
+   * Ensures new/existing devices immediately receive the freshest cloud data.
+   */
   private async fetchInitialCloudState() {
     if (!this.firestore || !navigator.onLine) return;
     try {
@@ -125,20 +127,25 @@ class RealtimeSyncManager {
         const remoteData = snap.data();
         const remoteUpdatedAt = remoteData?.updatedAt || remoteData?.state?.lastUpdated || 0;
         if (remoteData?.state) {
-          if (this.isLocalDefault || remoteUpdatedAt >= this.localLastUpdated) {
+          // If no unsaved local user edits occurred in this session, always adopt cloud data
+          if (!this.hasPendingLocalEdits || remoteUpdatedAt >= this.lastLocalEditTime) {
             this.handleRemoteDataReceived(remoteData.state, 'firebase', remoteUpdatedAt);
-            this.isLocalDefault = false;
           }
         }
       } else {
-        // Cloud document does not exist yet, seed initial data to cloud
-        this.broadcastDataUpdate(loadStoredData());
+        // Cloud document does not exist yet; initialize cloud document with current local data
+        const local = loadStoredData();
+        await this.pushToFirestoreDirect(local, local.lastUpdated || Date.now());
       }
     } catch (err) {
       console.warn('Initial cloud fetch notice:', err);
     }
   }
 
+  /**
+   * Sets up continuous real-time Firestore listener (onSnapshot).
+   * Automatically synchronizes updates made on PC Chrome to Mobile Safari, Edge, etc.
+   */
   private setupFirestoreListener() {
     if (!this.firestore) return;
 
@@ -150,28 +157,18 @@ class RealtimeSyncManager {
           if (docSnap.exists()) {
             const remoteData = docSnap.data();
             const remoteUpdatedAt = remoteData?.updatedAt || remoteData?.state?.lastUpdated || 0;
+            // Only adopt if update came from a different client
             if (remoteData?.updatedBy !== CLIENT_ID && remoteData?.state) {
-              // If local state was only default template OR if remote is newer or equal:
-              if (this.isLocalDefault || remoteUpdatedAt >= this.localLastUpdated) {
+              if (!this.hasPendingLocalEdits || remoteUpdatedAt >= this.lastLocalEditTime) {
                 this.handleRemoteDataReceived(remoteData.state, 'firebase', remoteUpdatedAt);
-                this.isLocalDefault = false;
-              } else if (this.localLastUpdated > remoteUpdatedAt + 2000 && !this.isLocalDefault) {
-                // If local data is genuinely newer from actual user edits on this device, sync to cloud
-                this.broadcastDataUpdate(loadStoredData());
               }
-            }
-          } else {
-            // First time cloud initialization
-            if (!this.isLocalDefault) {
-              this.broadcastDataUpdate(loadStoredData());
             }
           }
           this.currentInfo.mode = 'firebase';
           this.updateStatus('connected');
         },
         (error) => {
-          // If Firestore permissions or network restriction, fallback gracefully to BroadcastChannel
-          console.warn('Firestore real-time listener fallback:', error.message);
+          console.warn('Firestore real-time listener notice:', error.message);
           this.currentInfo.mode = 'broadcast';
           if (navigator.onLine) {
             this.updateStatus('connected');
@@ -184,51 +181,92 @@ class RealtimeSyncManager {
     }
   }
 
+  /**
+   * Sanitizes payload by stripping undefined values and circular references.
+   */
+  private sanitizeForFirestore(data: any): any {
+    return JSON.parse(JSON.stringify(data, (key, value) => {
+      return value === undefined ? null : value;
+    }));
+  }
+
+  /**
+   * Directly writes sanitized state to Firestore without auto-overwriting loops.
+   */
+  private async pushToFirestoreDirect(data: AppDataState, timestamp: number): Promise<boolean> {
+    if (!this.firestore || !navigator.onLine) return false;
+    try {
+      const cleanData = this.sanitizeForFirestore(data);
+      const docRef = doc(this.firestore, 'school_activities_system', 'shared_state');
+      await setDoc(docRef, {
+        state: cleanData,
+        updatedAt: timestamp,
+        updatedBy: CLIENT_ID,
+      }, { merge: true });
+      this.hasPendingLocalEdits = false;
+      return true;
+    } catch (err: any) {
+      console.warn('Direct Firestore push notice:', err?.message || err);
+      return false;
+    }
+  }
+
+  /**
+   * Applies incoming remote data from Firebase or BroadcastChannel into local state & React
+   */
   private handleRemoteDataReceived(newData: AppDataState, source: 'firebase' | 'broadcast', incomingUpdatedAt?: number) {
     if (this.isInternalUpdate) return;
 
-    // Check if incoming is older than genuine local user edits
-    if (!this.isLocalDefault && incomingUpdatedAt && incomingUpdatedAt < this.localLastUpdated) {
+    // Check if this device has pending local user edits newer than incoming
+    if (this.hasPendingLocalEdits && incomingUpdatedAt && incomingUpdatedAt < this.lastLocalEditTime) {
       return;
     }
 
     this.isInternalUpdate = true;
     try {
-      this.isLocalDefault = false;
-      this.localLastUpdated = incomingUpdatedAt || newData.lastUpdated || Date.now();
-      const dataToSave = { ...newData, isInitialDefault: false, lastUpdated: this.localLastUpdated };
+      const timestamp = incomingUpdatedAt || newData.lastUpdated || Date.now();
+      const dataToSave: AppDataState = {
+        ...newData,
+        isInitialDefault: false,
+        lastUpdated: timestamp,
+      };
+
       saveStoredData(dataToSave);
       const now = new Date();
       this.currentInfo.lastSyncedAt = now;
       this.currentInfo.mode = source;
       this.updateStatus('connected');
 
-      // Notify data listeners in React
+      // Notify React subscribers
       this.dataListeners.forEach((listener) => listener(dataToSave));
-      // Notify sync success for floating banner
+      // Notify visual sync banner
       this.notifySyncSuccess(now);
     } finally {
       setTimeout(() => {
         this.isInternalUpdate = false;
-      }, 100);
+      }, 50);
     }
   }
 
   /**
-   * Called by App when data is modified locally.
-   * Broadcasts to other open tabs and syncs to Cloud Firestore.
+   * Called by App when data is modified by the user locally.
+   * Broadcasts to other open tabs and pushes to Cloud Firestore.
    */
   public broadcastDataUpdate(newData: AppDataState) {
     if (this.isInternalUpdate) return;
 
-    this.isLocalDefault = false;
-    const timestamp = newData.lastUpdated || Date.now();
-    this.localLastUpdated = timestamp;
+    const timestamp = Date.now();
+    this.hasPendingLocalEdits = true;
+    this.lastLocalEditTime = timestamp;
     this.updateStatus('syncing');
 
-    const payload = { ...newData, isInitialDefault: false, lastUpdated: timestamp };
+    const payload: AppDataState = {
+      ...newData,
+      isInitialDefault: false,
+      lastUpdated: timestamp,
+    };
 
-    // 1. Send via local BroadcastChannel immediately
+    // 1. Send via local BroadcastChannel immediately for sibling tabs
     if (this.broadcastChannel) {
       try {
         this.broadcastChannel.postMessage({
@@ -242,7 +280,7 @@ class RealtimeSyncManager {
       }
     }
 
-    // 2. Debounce Firestore Cloud push to prevent rapid burst writes
+    // 2. Push to Firestore Cloud (debounced by 200ms to batch rapid UI typing/clicking)
     if (this.syncDebounceTimer) {
       clearTimeout(this.syncDebounceTimer);
     }
@@ -250,16 +288,10 @@ class RealtimeSyncManager {
     this.syncDebounceTimer = setTimeout(async () => {
       const now = new Date();
       if (this.firestore && navigator.onLine) {
-        try {
-          const docRef = doc(this.firestore, 'school_activities_system', 'shared_state');
-          await setDoc(docRef, {
-            state: payload,
-            updatedAt: timestamp,
-            updatedBy: CLIENT_ID,
-          }, { merge: true });
+        const success = await this.pushToFirestoreDirect(payload, timestamp);
+        if (success) {
           this.currentInfo.mode = 'firebase';
-        } catch (err: any) {
-          console.warn('Cloud sync push notice (local cache active):', err?.message || err);
+        } else {
           this.currentInfo.mode = 'broadcast';
         }
       }
@@ -267,13 +299,14 @@ class RealtimeSyncManager {
       this.currentInfo.lastSyncedAt = now;
       this.updateStatus('connected');
       this.notifySyncSuccess(now);
-    }, 300);
+    }, 200);
   }
 
   /**
-   * Triggers an immediate manual synchronization check (Pull from Cloud)
+   * Triggers an immediate manual synchronization check (Pull from Cloud).
+   * @param forcePull If true, overwrites any local cache with the latest cloud state.
    */
-  public async syncWithCloud(forcePull: boolean = false): Promise<boolean> {
+  public async syncWithCloud(forcePull: boolean = true): Promise<boolean> {
     this.updateStatus('syncing');
     const now = new Date();
 
@@ -285,9 +318,9 @@ class RealtimeSyncManager {
           const remoteData = snap.data();
           const remoteUpdatedAt = remoteData?.updatedAt || remoteData?.state?.lastUpdated || 0;
           if (remoteData?.state) {
-            if (forcePull || this.isLocalDefault || remoteUpdatedAt >= this.localLastUpdated) {
+            if (forcePull || !this.hasPendingLocalEdits || remoteUpdatedAt >= this.lastLocalEditTime) {
+              this.hasPendingLocalEdits = false;
               this.handleRemoteDataReceived(remoteData.state, 'firebase', remoteUpdatedAt);
-              this.isLocalDefault = false;
             }
           }
         }
@@ -310,24 +343,22 @@ class RealtimeSyncManager {
   }
 
   /**
-   * Force pushes local data to cloud (overwrites cloud state)
+   * Force pushes local data to cloud (overwrites cloud state with this device's data).
    */
   public async forcePushToCloud(data: AppDataState): Promise<boolean> {
     if (!this.firestore || !navigator.onLine) return false;
     this.updateStatus('syncing');
     try {
       const timestamp = Date.now();
-      this.localLastUpdated = timestamp;
-      this.isLocalDefault = false;
-      const payload = { ...data, isInitialDefault: false, lastUpdated: timestamp };
+      this.lastLocalEditTime = timestamp;
+      this.hasPendingLocalEdits = false;
+      const payload: AppDataState = { ...data, isInitialDefault: false, lastUpdated: timestamp };
       saveStoredData(payload);
 
-      const docRef = doc(this.firestore, 'school_activities_system', 'shared_state');
-      await setDoc(docRef, {
-        state: payload,
-        updatedAt: timestamp,
-        updatedBy: CLIENT_ID,
-      }, { merge: true });
+      const success = await this.pushToFirestoreDirect(payload, timestamp);
+      if (!success) {
+        throw new Error('Firestore push returned false');
+      }
 
       if (this.broadcastChannel) {
         this.broadcastChannel.postMessage({
@@ -403,3 +434,4 @@ class RealtimeSyncManager {
 }
 
 export const realtimeSync = new RealtimeSyncManager();
+
