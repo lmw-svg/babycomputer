@@ -33,6 +33,8 @@ class RealtimeSyncManager {
   private dataListeners: Set<(data: AppDataState) => void> = new Set();
   private syncSuccessListeners: Set<(timestamp: Date) => void> = new Set();
 
+  private localLastUpdated: number = Date.now();
+
   private currentInfo: SyncInfo = {
     status: 'connected',
     lastSyncedAt: new Date(),
@@ -48,6 +50,16 @@ class RealtimeSyncManager {
   }
 
   private init() {
+    // Read initial local timestamp
+    try {
+      const initialLocal = loadStoredData();
+      if (initialLocal.lastUpdated) {
+        this.localLastUpdated = initialLocal.lastUpdated;
+      }
+    } catch (e) {
+      // ignore
+    }
+
     // 1. Initialize Network Status listeners
     if (typeof window !== 'undefined') {
       window.addEventListener('online', () => {
@@ -73,7 +85,8 @@ class RealtimeSyncManager {
           if (senderId === CLIENT_ID) return; // Skip own messages
 
           if (type === 'DATA_UPDATE' && payload) {
-            this.handleRemoteDataReceived(payload, 'broadcast');
+            const incomingTimestamp = timestamp || payload.lastUpdated || Date.now();
+            this.handleRemoteDataReceived(payload, 'broadcast', incomingTimestamp);
           } else if (type === 'PING') {
             this.broadcastChannel?.postMessage({
               type: 'PONG',
@@ -98,20 +111,6 @@ class RealtimeSyncManager {
       console.warn('Firebase Firestore initialization notice:', e);
       this.currentInfo.mode = 'broadcast';
     }
-
-    // 4. Window storage event fallback
-    if (typeof window !== 'undefined') {
-      window.addEventListener('storage', (e) => {
-        if (e.key && e.key.startsWith('school_activities_system')) {
-          try {
-            const parsed = loadStoredData();
-            this.handleRemoteDataReceived(parsed, 'broadcast');
-          } catch (err) {
-            console.error('Storage sync error:', err);
-          }
-        }
-      });
-    }
   }
 
   private setupFirestoreListener() {
@@ -124,8 +123,15 @@ class RealtimeSyncManager {
         (docSnap) => {
           if (docSnap.exists()) {
             const remoteData = docSnap.data();
+            const remoteUpdatedAt = remoteData?.updatedAt || remoteData?.state?.lastUpdated || 0;
             if (remoteData?.updatedBy !== CLIENT_ID && remoteData?.state) {
-              this.handleRemoteDataReceived(remoteData.state, 'firebase');
+              // Only adopt remote data if it is newer than the local user's last edit
+              if (remoteUpdatedAt > this.localLastUpdated) {
+                this.handleRemoteDataReceived(remoteData.state, 'firebase', remoteUpdatedAt);
+              } else if (this.localLastUpdated > remoteUpdatedAt + 1000) {
+                // If local data is newer, push to cloud to keep cloud up-to-date
+                this.broadcastDataUpdate(loadStoredData());
+              }
             }
           }
           this.currentInfo.mode = 'firebase';
@@ -146,11 +152,17 @@ class RealtimeSyncManager {
     }
   }
 
-  private handleRemoteDataReceived(newData: AppDataState, source: 'firebase' | 'broadcast') {
+  private handleRemoteDataReceived(newData: AppDataState, source: 'firebase' | 'broadcast', incomingUpdatedAt?: number) {
     if (this.isInternalUpdate) return;
+
+    // Check if incoming is older than local edits
+    if (incomingUpdatedAt && incomingUpdatedAt < this.localLastUpdated) {
+      return;
+    }
 
     this.isInternalUpdate = true;
     try {
+      this.localLastUpdated = incomingUpdatedAt || newData.lastUpdated || Date.now();
       saveStoredData(newData);
       const now = new Date();
       this.currentInfo.lastSyncedAt = now;
@@ -175,6 +187,8 @@ class RealtimeSyncManager {
   public broadcastDataUpdate(newData: AppDataState) {
     if (this.isInternalUpdate) return;
 
+    const timestamp = newData.lastUpdated || Date.now();
+    this.localLastUpdated = timestamp;
     this.updateStatus('syncing');
 
     // 1. Send via local BroadcastChannel immediately
@@ -183,8 +197,8 @@ class RealtimeSyncManager {
         this.broadcastChannel.postMessage({
           type: 'DATA_UPDATE',
           senderId: CLIENT_ID,
-          payload: newData,
-          timestamp: Date.now(),
+          payload: { ...newData, lastUpdated: timestamp },
+          timestamp,
         });
       } catch (e) {
         console.warn('BroadcastChannel post error:', e);
@@ -202,8 +216,8 @@ class RealtimeSyncManager {
         try {
           const docRef = doc(this.firestore, 'school_activities_system', 'shared_state');
           await setDoc(docRef, {
-            state: newData,
-            updatedAt: Date.now(),
+            state: { ...newData, lastUpdated: timestamp },
+            updatedAt: timestamp,
             updatedBy: CLIENT_ID,
           }, { merge: true });
           this.currentInfo.mode = 'firebase';
@@ -216,7 +230,7 @@ class RealtimeSyncManager {
       this.currentInfo.lastSyncedAt = now;
       this.updateStatus('connected');
       this.notifySyncSuccess(now);
-    }, 400);
+    }, 300);
   }
 
   /**
@@ -232,8 +246,9 @@ class RealtimeSyncManager {
         const snap = await getDoc(docRef);
         if (snap.exists()) {
           const remoteData = snap.data();
-          if (remoteData?.state) {
-            this.handleRemoteDataReceived(remoteData.state, 'firebase');
+          const remoteUpdatedAt = remoteData?.updatedAt || remoteData?.state?.lastUpdated || 0;
+          if (remoteData?.state && remoteUpdatedAt > this.localLastUpdated) {
+            this.handleRemoteDataReceived(remoteData.state, 'firebase', remoteUpdatedAt);
           }
         }
       }

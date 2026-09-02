@@ -450,6 +450,7 @@ export const App: React.FC = () => {
             maskPhone={maskPhone}
             initialGroupId={activeGroupId}
             onUpdateAttendance={handleUpdateAttendance}
+            onSaveGroup={handleSaveActivityGroup}
             onEditGroup={(group) => {
               setEditingGroup(group);
               setIsActivityModalOpen(true);

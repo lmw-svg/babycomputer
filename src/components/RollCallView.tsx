@@ -39,6 +39,7 @@ interface RollCallViewProps {
   initialGroupId?: string;
   onUpdateAttendance: (records: AttendanceRecord[]) => void;
   onEditGroup?: (group: ActivityGroup) => void;
+  onSaveGroup?: (group: ActivityGroup) => void;
   onEnrollStudent?: (groupId: string) => void;
   onBatchEnrollStudents?: (
     groupId: string,
@@ -60,6 +61,7 @@ export const RollCallView: React.FC<RollCallViewProps> = ({
   initialGroupId,
   onUpdateAttendance,
   onEditGroup,
+  onSaveGroup,
   onEnrollStudent,
   onBatchEnrollStudents,
   onRemoveEnrollment,
@@ -268,10 +270,24 @@ export const RollCallView: React.FC<RollCallViewProps> = ({
 
     const newDate = normalizeSingleDateInput(customDateInput.trim());
     if (!newDate) return;
-    if (!selectedGroup.sessionDates.includes(newDate)) {
-      selectedGroup.sessionDates.push(newDate);
-      selectedGroup.datesText = selectedGroup.sessionDates.join('、');
+
+    const existingDates = Array.isArray(selectedGroup.sessionDates) ? selectedGroup.sessionDates : [];
+    const updatedDates = existingDates.includes(newDate)
+      ? existingDates
+      : [...existingDates, newDate];
+
+    const updatedGroup: ActivityGroup = {
+      ...selectedGroup,
+      sessionDates: updatedDates,
+      datesText: updatedDates.join('、'),
+    };
+
+    if (onSaveGroup) {
+      onSaveGroup(updatedGroup);
+    } else if (onEditGroup) {
+      onEditGroup(updatedGroup);
     }
+
     setSelectedDate(newDate);
     setCustomDateInput('');
     setShowAddDate(false);

@@ -101,7 +101,12 @@ export const EditActivityModal: React.FC<EditActivityModalProps> = ({
   // Parse session dates preview with dedicated parser
   const parsedDates = useMemo(() => {
     if (!datesText.trim()) return [];
-    return parseSessionDates(datesText);
+    const parsed = parseSessionDates(datesText);
+    if (parsed.length > 0) return parsed;
+    return datesText
+      .split(/[、,，;；\n\r\t&與及至和~～\s]+/)
+      .map(s => s.trim())
+      .filter(Boolean);
   }, [datesText]);
 
   useEffect(() => {
@@ -124,8 +129,8 @@ export const EditActivityModal: React.FC<EditActivityModalProps> = ({
       setSupportTarget(groupToEdit.supportTarget || '');
       const validDates = groupToEdit.sessionDates && groupToEdit.sessionDates.length > 0
         ? groupToEdit.sessionDates.join('、')
-        : '9/10、16/10、23/10、30/10';
-      setDatesText(groupToEdit.datesText || validDates);
+        : '';
+      setDatesText(groupToEdit.datesText || validDates || '9/10、16/10、23/10、30/10');
       setRemarks(groupToEdit.remarks || '');
       setMaxCapacity(groupToEdit.maxCapacity || 35);
       setErrorMessage(null);
@@ -207,7 +212,16 @@ export const EditActivityModal: React.FC<EditActivityModalProps> = ({
       return;
     }
 
-    const sessionDates = parsedDates.length > 0 ? parsedDates : ['9/10', '16/10', '23/10', '30/10'];
+    let sessionDates = parsedDates;
+    if (sessionDates.length === 0 && datesText.trim()) {
+      sessionDates = datesText
+        .split(/[、,，;；\n\r\t&與及至和~～\s]+/)
+        .map(s => s.trim())
+        .filter(Boolean);
+    }
+    if (sessionDates.length === 0) {
+      sessionDates = ['9/10', '16/10', '23/10', '30/10'];
+    }
     const finalVenue = venue === '自訂地點' ? customVenue.trim() || '未定地點' : venue;
     const finalTeacher = teacher.trim() || '負責職員未指定';
 

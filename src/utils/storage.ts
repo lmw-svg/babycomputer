@@ -10,9 +10,9 @@ const PREVIOUS_STORAGE_KEYS = [
 ];
 
 /**
- * Sanitizes and repairs date formats across activity groups and attendance records
- * to guarantee no single numbers (like "10") or outdated dummy March dates exist
- * and ensure format is consistently "D/M" (like "9/10", "16/10", "23/9").
+ * Non-destructive data sanitizer: preserves user customized session dates,
+ * ensures required array structures exist, and prevents corruption without
+ * reverting user modifications.
  */
 function sanitizeLoadedData(data: AppDataState): { sanitized: AppDataState; modified: boolean } {
   let modified = false;
@@ -21,41 +21,30 @@ function sanitizeLoadedData(data: AppDataState): { sanitized: AppDataState; modi
 
   const sanitizedGroups = (Array.isArray(data.activityGroups) ? data.activityGroups : INITIAL_ACTIVITY_GROUPS).map(g => {
     let groupModified = false;
-    let datesText = (g.datesText || '').trim();
+    let datesText = typeof g.datesText === 'string' ? g.datesText.trim() : '';
     let sessionDates = Array.isArray(g.sessionDates) ? [...g.sessionDates] : [];
 
     const initialMatch = initialGroupMap.get(g.id);
 
-    // If this is a predefined system group and contains old dummy dates like "16/3" or bare numbers or non-standard format
-    const hasOldMarchDates = sessionDates.some(d => d.includes('/3') || d.includes('/4') || d.includes('/5'));
-    const hasBareNumbers = sessionDates.some(d => /^\d{1,2}$/.test(d.trim()));
-
-    if (initialMatch && (hasOldMarchDates || hasBareNumbers || sessionDates.length === 0 || !datesText)) {
-      sessionDates = [...initialMatch.sessionDates];
-      datesText = initialMatch.datesText;
-      groupModified = true;
-    } else {
-      // Re-parse and sanitize sessionDates from datesText if needed
-      let parsed = parseSessionDates(datesText);
-      if (parsed.length > 0) {
-        sessionDates = parsed;
-        datesText = formatSessionDatesText(parsed);
-        groupModified = true;
-      } else if (sessionDates.length > 0) {
-        sessionDates = sessionDates.map(d => {
-          if (d.trim() === '10') {
-            groupModified = true;
-            return '9/10';
-          }
-          return d.trim();
-        }).filter(d => !/^\d{1,2}$/.test(d));
-        datesText = formatSessionDatesText(sessionDates);
-        groupModified = true;
-      } else if (initialMatch) {
+    // If both sessionDates and datesText are completely empty, use fallback from initial match or defaults
+    if (sessionDates.length === 0 && !datesText) {
+      if (initialMatch) {
         sessionDates = [...initialMatch.sessionDates];
         datesText = initialMatch.datesText;
-        groupModified = true;
+      } else {
+        sessionDates = ['9/10', '16/10', '23/10', '30/10'];
+        datesText = '9/10、16/10、23/10、30/10';
       }
+      groupModified = true;
+    } else if (sessionDates.length === 0 && datesText) {
+      // Derive sessionDates from non-empty datesText
+      const parsed = parseSessionDates(datesText);
+      sessionDates = parsed.length > 0 ? parsed : datesText.split(/[、,，;；\s]+/).filter(Boolean);
+      groupModified = true;
+    } else if (!datesText && sessionDates.length > 0) {
+      // Derive datesText from sessionDates
+      datesText = formatSessionDatesText(sessionDates);
+      groupModified = true;
     }
 
     if (groupModified) {
@@ -69,26 +58,7 @@ function sanitizeLoadedData(data: AppDataState): { sanitized: AppDataState; modi
     return g;
   });
 
-  const sanitizedAttendance = (Array.isArray(data.attendanceRecords) ? data.attendanceRecords : INITIAL_ATTENDANCE_RECORDS).map(r => {
-    let recModified = false;
-    let newDate = r.date;
-    if (r.date === '10') {
-      newDate = '9/10';
-      recModified = true;
-    } else if (r.date === '16/3' || r.date === '23/3' || r.date === '30/3') {
-      const g = sanitizedGroups.find(grp => grp.id === r.groupId);
-      if (g && g.sessionDates.length > 0) {
-        newDate = g.sessionDates[0];
-        recModified = true;
-      }
-    }
-
-    if (recModified) {
-      modified = true;
-      return { ...r, date: newDate };
-    }
-    return r;
-  });
+  const sanitizedAttendance = Array.isArray(data.attendanceRecords) ? data.attendanceRecords : INITIAL_ATTENDANCE_RECORDS;
 
   return {
     sanitized: {
@@ -96,6 +66,7 @@ function sanitizeLoadedData(data: AppDataState): { sanitized: AppDataState; modi
       activityGroups: sanitizedGroups,
       enrollments: Array.isArray(data.enrollments) ? data.enrollments : INITIAL_ENROLLMENTS,
       attendanceRecords: sanitizedAttendance,
+      lastUpdated: data.lastUpdated || Date.now(),
     },
     modified,
   };
@@ -143,8 +114,12 @@ export function loadStoredData(): AppDataState {
 
 export function saveStoredData(data: AppDataState): void {
   try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
-    window.dispatchEvent(new CustomEvent('school-data-updated', { detail: data }));
+    const toSave: AppDataState = {
+      ...data,
+      lastUpdated: data.lastUpdated || Date.now(),
+    };
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(toSave));
+    window.dispatchEvent(new CustomEvent('school-data-updated', { detail: toSave }));
   } catch (e) {
     console.error('Error saving stored data:', e);
   }
@@ -156,6 +131,7 @@ export function resetStoredData(): AppDataState {
     activityGroups: INITIAL_ACTIVITY_GROUPS,
     enrollments: INITIAL_ENROLLMENTS,
     attendanceRecords: INITIAL_ATTENDANCE_RECORDS,
+    lastUpdated: Date.now(),
   };
   saveStoredData(initial);
   return initial;
@@ -172,13 +148,14 @@ export function updateActivityGroup(group: ActivityGroup): AppDataState {
   let updatedGroups: ActivityGroup[];
   if (index >= 0) {
     updatedGroups = [...data.activityGroups];
-    updatedGroups[index] = group;
+    updatedGroups[index] = { ...group };
   } else {
-    updatedGroups = [...data.activityGroups, group];
+    updatedGroups = [...data.activityGroups, { ...group }];
   }
   const newData: AppDataState = {
     ...data,
     activityGroups: updatedGroups,
+    lastUpdated: Date.now(),
   };
   saveStoredData(newData);
   return newData;

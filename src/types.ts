@@ -69,6 +69,7 @@ export interface AppDataState {
   activityGroups: ActivityGroup[];
   enrollments: Enrollment[];
   attendanceRecords: AttendanceRecord[];
+  lastUpdated?: number;
 }
 
 export type NavigationTab = 
