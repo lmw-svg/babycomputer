@@ -59,6 +59,7 @@ function sanitizeLoadedData(data: AppDataState): { sanitized: AppDataState; modi
   });
 
   const sanitizedAttendance = Array.isArray(data.attendanceRecords) ? data.attendanceRecords : INITIAL_ATTENDANCE_RECORDS;
+  const sanitizedSettings = data.settings || { maskPhone: false, defaultGroupId: 'S002' };
 
   return {
     sanitized: {
@@ -66,7 +67,9 @@ function sanitizeLoadedData(data: AppDataState): { sanitized: AppDataState; modi
       activityGroups: sanitizedGroups,
       enrollments: Array.isArray(data.enrollments) ? data.enrollments : INITIAL_ENROLLMENTS,
       attendanceRecords: sanitizedAttendance,
-      lastUpdated: data.lastUpdated || Date.now(),
+      settings: sanitizedSettings,
+      lastUpdated: data.lastUpdated !== undefined ? data.lastUpdated : (data.isInitialDefault ? 0 : Date.now()),
+      isInitialDefault: data.isInitialDefault ?? false,
     },
     modified,
   };
@@ -92,6 +95,9 @@ export function loadStoredData(): AppDataState {
         activityGroups: INITIAL_ACTIVITY_GROUPS,
         enrollments: INITIAL_ENROLLMENTS,
         attendanceRecords: INITIAL_ATTENDANCE_RECORDS,
+        settings: { maskPhone: false, defaultGroupId: 'S002' },
+        lastUpdated: 0,
+        isInitialDefault: true,
       };
       saveStoredData(initial);
       return initial;
@@ -108,6 +114,9 @@ export function loadStoredData(): AppDataState {
       activityGroups: INITIAL_ACTIVITY_GROUPS,
       enrollments: INITIAL_ENROLLMENTS,
       attendanceRecords: INITIAL_ATTENDANCE_RECORDS,
+      settings: { maskPhone: false, defaultGroupId: 'S002' },
+      lastUpdated: 0,
+      isInitialDefault: true,
     };
   }
 }
@@ -116,7 +125,8 @@ export function saveStoredData(data: AppDataState): void {
   try {
     const toSave: AppDataState = {
       ...data,
-      lastUpdated: data.lastUpdated || Date.now(),
+      lastUpdated: data.lastUpdated !== undefined ? data.lastUpdated : Date.now(),
+      isInitialDefault: data.isInitialDefault ?? false,
     };
     localStorage.setItem(STORAGE_KEY, JSON.stringify(toSave));
     window.dispatchEvent(new CustomEvent('school-data-updated', { detail: toSave }));
@@ -131,7 +141,9 @@ export function resetStoredData(): AppDataState {
     activityGroups: INITIAL_ACTIVITY_GROUPS,
     enrollments: INITIAL_ENROLLMENTS,
     attendanceRecords: INITIAL_ATTENDANCE_RECORDS,
+    settings: { maskPhone: false, defaultGroupId: 'S002' },
     lastUpdated: Date.now(),
+    isInitialDefault: false,
   };
   saveStoredData(initial);
   return initial;

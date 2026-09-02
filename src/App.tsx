@@ -42,20 +42,39 @@ export const App: React.FC = () => {
   // Global Data State initialized from localStorage or initial school dataset
   const [data, setData] = useState<AppDataState>(() => loadStoredData());
 
+  // Privacy Phone Masking Setting (synced via data.settings)
+  const [maskPhone, setMaskPhoneState] = useState<boolean>(() => {
+    return loadStoredData().settings?.maskPhone ?? false;
+  });
+
+  const setMaskPhone = (val: boolean) => {
+    setMaskPhoneState(val);
+    const updated: AppDataState = {
+      ...data,
+      settings: {
+        ...data.settings,
+        maskPhone: val,
+      },
+    };
+    handleSaveData(updated);
+  };
+
   // Listen to remote realtime data changes across devices / tabs
   useEffect(() => {
     const unsubData = realtimeSync.subscribeDataUpdates((newData) => {
       setData(newData);
+      if (newData.settings?.maskPhone !== undefined) {
+        setMaskPhoneState(newData.settings.maskPhone);
+      }
     });
     return () => unsubData();
-  }, []);
+  }, [data]);
 
   // Navigation & Role State (Default to guest, requires password to switch to teacher/head-teacher/admin)
   const [currentTab, setCurrentTab] = useState<NavigationTab>('dashboard');
   const [role, setRole] = useState<UserRole>('guest');
   const [pendingAuthRole, setPendingAuthRole] = useState<Exclude<UserRole, 'guest'> | null>(null);
   const [isAuthModalOpen, setIsAuthModalOpen] = useState<boolean>(false);
-  const [maskPhone, setMaskPhone] = useState<boolean>(false);
 
   // Cross-component selected IDs
   const [activeGroupId, setActiveGroupId] = useState<string>('S002');

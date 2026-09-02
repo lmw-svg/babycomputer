@@ -64,12 +64,21 @@ export interface AttendanceRecord {
   updatedBy?: string;
 }
 
+export interface AppSettings {
+  maskPhone?: boolean;
+  schoolName?: string;
+  defaultGroupId?: string;
+  theme?: string;
+}
+
 export interface AppDataState {
   students: Student[];
   activityGroups: ActivityGroup[];
   enrollments: Enrollment[];
   attendanceRecords: AttendanceRecord[];
+  settings?: AppSettings;
   lastUpdated?: number;
+  isInitialDefault?: boolean;
 }
 
 export type NavigationTab = 

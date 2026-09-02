@@ -7,10 +7,15 @@ import {
   RotateCcw, 
   CheckCircle2, 
   AlertCircle,
-  FileCode
+  FileCode,
+  Cloud,
+  RefreshCw,
+  Radio,
+  Database
 } from 'lucide-react';
 import { AppDataState, UserRole } from '../types';
 import { exportFullSchoolDataToExcel, parseUploadedFile } from '../utils/excel';
+import { realtimeSync } from '../services/realtimeSync';
 
 interface DataImportExportModalProps {
   isOpen: boolean;
@@ -31,7 +36,7 @@ export const DataImportExportModal: React.FC<DataImportExportModalProps> = ({
   onImportData,
   onResetData,
 }) => {
-  const [activeTab, setActiveTab] = useState<'export' | 'import' | 'backup'>('export');
+  const [activeTab, setActiveTab] = useState<'export' | 'import' | 'cloud'>('export');
   const [isProcessing, setIsProcessing] = useState(false);
   const [importMessage, setImportMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
 
@@ -134,8 +139,8 @@ export const DataImportExportModal: React.FC<DataImportExportModalProps> = ({
               <Download className="w-4 h-4" />
             </div>
             <div>
-              <h3 className="text-base font-bold text-[#2C2C2A]">資料導出與導入中心</h3>
-              <p className="text-xs text-[#78786E]">支援 Excel (.xlsx)、CSV 及系統 JSON 完整備份</p>
+              <h3 className="text-base font-bold text-[#2C2C2A]">資料導出、導入與多裝置同步中心</h3>
+              <p className="text-xs text-[#78786E]">支援 Excel (.xlsx)、JSON 備份與跨 PC / 手機即時同步</p>
             </div>
           </div>
           <button
@@ -168,6 +173,17 @@ export const DataImportExportModal: React.FC<DataImportExportModalProps> = ({
           >
             導入資料 (Excel / JSON)
           </button>
+          <button
+            onClick={() => setActiveTab('cloud')}
+            className={`pb-2.5 text-xs font-bold border-b-2 transition-all flex items-center gap-1 ${
+              activeTab === 'cloud'
+                ? 'border-[#485945] text-[#485945]'
+                : 'border-transparent text-[#78786E] hover:text-[#2C2C2A]'
+            }`}
+          >
+            <Cloud className="w-3.5 h-3.5" />
+            <span>跨裝置即時同步</span>
+          </button>
         </div>
 
         {/* Body */}
@@ -187,7 +203,7 @@ export const DataImportExportModal: React.FC<DataImportExportModalProps> = ({
             </div>
           )}
 
-          {activeTab === 'export' ? (
+          {activeTab === 'export' && (
             <div className="space-y-4">
               {/* Option 1: Multi-sheet Excel */}
               <div className="p-4 rounded-xl border border-[#E5E2DA] bg-[#FAF9F5] hover:bg-[#F5F5F0] transition-colors flex items-start justify-between gap-4">
@@ -231,7 +247,9 @@ export const DataImportExportModal: React.FC<DataImportExportModalProps> = ({
                 </button>
               </div>
             </div>
-          ) : (
+          )}
+
+          {activeTab === 'import' && (
             <div className="space-y-4">
               {role === 'guest' ? (
                 <div className="p-4 rounded-xl bg-[#FDF6ED] border border-[#EED7B8] text-[#8C521E] text-xs">
@@ -278,6 +296,79 @@ export const DataImportExportModal: React.FC<DataImportExportModalProps> = ({
                   </div>
                 </>
               )}
+            </div>
+          )}
+
+          {activeTab === 'cloud' && (
+            <div className="space-y-4">
+              <div className="p-4 rounded-xl bg-[#FAF9F5] border border-[#E5E2DA] space-y-3">
+                <div className="flex items-center gap-2">
+                  <Cloud className="w-5 h-5 text-[#485945]" />
+                  <h4 className="text-sm font-bold text-[#2C2C2A]">跨瀏覽器、PC 與手機多裝置同步狀態</h4>
+                </div>
+                <p className="text-xs text-[#78786E] leading-relaxed">
+                  系統透過 Firebase Firestore 雲端資料庫進行實時資料廣播。當您在電腦修改活動日期、設定或點名，手機開啟同一網址即可實時獲取一致的最新數據。
+                </p>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-1">
+                  <div className="p-3 bg-white rounded-lg border border-[#E5E2DA] text-xs space-y-1">
+                    <span className="text-[#78786E] block font-medium">當前裝置資料版本</span>
+                    <span className="font-mono font-bold text-[#2C2C2A]">
+                      {data.lastUpdated ? new Date(data.lastUpdated).toLocaleTimeString() : '初始預設'}
+                    </span>
+                  </div>
+                  <div className="p-3 bg-white rounded-lg border border-[#E5E2DA] text-xs space-y-1">
+                    <span className="text-[#78786E] block font-medium">電話號碼遮蔽狀態</span>
+                    <span className="font-bold text-[#2C5E32]">
+                      {data.settings?.maskPhone ? '已啟用遮蔽 (保護隱私)' : '已顯示完整電話'}
+                    </span>
+                  </div>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-3 pt-1">
+                <button
+                  id="cloud-tab-pull-btn"
+                  onClick={async () => {
+                    setIsProcessing(true);
+                    const ok = await realtimeSync.syncWithCloud(true);
+                    setIsProcessing(false);
+                    if (ok) {
+                      setImportMessage({
+                        type: 'success',
+                        text: '已成功從雲端同步最新活動與學生名單！',
+                      });
+                    }
+                  }}
+                  className="flex-1 py-2.5 rounded-xl bg-[#485945] hover:bg-[#3D4C3A] text-white text-xs font-bold transition-colors shadow-xs flex items-center justify-center gap-1.5"
+                >
+                  <RefreshCw className={`w-3.5 h-3.5 ${isProcessing ? 'animate-spin' : ''}`} />
+                  <span>從雲端重新整理最新資料</span>
+                </button>
+
+                {role !== 'guest' && (
+                  <button
+                    id="cloud-tab-push-btn"
+                    onClick={async () => {
+                      if (window.confirm('確定要將此裝置目前的資料強制上傳至雲端，並同步至其他瀏覽器與手機嗎？')) {
+                        setIsProcessing(true);
+                        const ok = await realtimeSync.forcePushToCloud(data);
+                        setIsProcessing(false);
+                        if (ok) {
+                          setImportMessage({
+                            type: 'success',
+                            text: '已成功將本機最新資料強制上傳並廣播至雲端！',
+                          });
+                        }
+                      }
+                    }}
+                    className="flex-1 py-2.5 rounded-xl bg-[#2C2C2A] hover:bg-[#1E1E1C] text-white text-xs font-bold transition-colors shadow-xs flex items-center justify-center gap-1.5"
+                  >
+                    <Upload className="w-3.5 h-3.5" />
+                    <span>強制上傳本機資料至雲端</span>
+                  </button>
+                )}
+              </div>
             </div>
           )}
         </div>

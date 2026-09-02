@@ -14,6 +14,7 @@ import {
   Zap
 } from 'lucide-react';
 import { realtimeSync, SyncInfo, SyncStatus } from '../services/realtimeSync';
+import { loadStoredData } from '../utils/storage';
 
 interface ConnectionStatusBarProps {
   onManualSyncRequest?: () => void;
@@ -244,19 +245,42 @@ export const ConnectionStatusBar: React.FC<ConnectionStatusBarProps> = ({
               </div>
 
               <div className="text-[11px] text-[#78786E] leading-relaxed bg-[#EEF5EF] p-3 rounded-xl border border-[#CCD8C7] text-[#2C5E32]">
-                <strong className="block font-bold text-[#1E4A23] mb-0.5">💡 實時多裝置同步說明：</strong>
-                當不同教師或主任在不同裝置、視窗或分頁進行點名或修改名冊時，系統會透過 WebSocket 廣播通道與 Firebase 實時監聽自動雙向更新，並在右上角顯示<strong>「資料已同步」</strong>綠色提示。
+                <strong className="block font-bold text-[#1E4A23] mb-0.5">💡 跨瀏覽器與手機/PC 即時同步說明：</strong>
+                系統已啟用 Firebase 雲端監聽與本機快取雙向同步。在任何電腦（Chrome / Edge / Safari）或手機進行點名、修改活動日期或學生資料時，所有連線中的裝置均會自動接收最新變更並同步設定。
               </div>
             </div>
 
-            <div className="px-5 py-3 bg-[#FAF9F5] border-t border-[#E5E2DA] flex items-center justify-between">
-              <button
-                onClick={handleManualSync}
-                className="px-3 py-1.5 rounded-lg bg-[#485945] hover:bg-[#3D4C3A] text-white text-xs font-semibold flex items-center gap-1.5 transition-colors shadow-2xs"
-              >
-                <RefreshCw className={`w-3.5 h-3.5 ${isSyncing ? 'animate-spin' : ''}`} />
-                <span>立即強制同步</span>
-              </button>
+            <div className="px-5 py-3 bg-[#FAF9F5] border-t border-[#E5E2DA] flex items-center justify-between gap-2 flex-wrap">
+              <div className="flex items-center gap-2">
+                <button
+                  id="modal-pull-cloud-btn"
+                  onClick={async () => {
+                    setIsManualSyncing(true);
+                    await realtimeSync.syncWithCloud(true);
+                    setIsManualSyncing(false);
+                  }}
+                  className="px-3 py-1.5 rounded-lg bg-[#485945] hover:bg-[#3D4C3A] text-white text-xs font-semibold flex items-center gap-1.5 transition-colors shadow-2xs"
+                  title="強制從 Firebase 雲端下載最新資料"
+                >
+                  <RefreshCw className={`w-3.5 h-3.5 ${isSyncing ? 'animate-spin' : ''}`} />
+                  <span>從雲端重新整理</span>
+                </button>
+                <button
+                  id="modal-push-cloud-btn"
+                  onClick={async () => {
+                    if (window.confirm('確定要將此裝置目前的資料覆蓋並上傳至雲端嗎？')) {
+                      setIsManualSyncing(true);
+                      await realtimeSync.forcePushToCloud(loadStoredData());
+                      setIsManualSyncing(false);
+                    }
+                  }}
+                  className="px-2.5 py-1.5 rounded-lg bg-[#EFEFEA] hover:bg-[#E2E1D9] text-[#4A4A42] text-xs font-medium border border-[#DDDCD4] flex items-center gap-1 transition-colors"
+                  title="將本機資料強制推送至雲端"
+                >
+                  <Cloud className="w-3.5 h-3.5 text-[#485945]" />
+                  <span>上傳本機至雲端</span>
+                </button>
+              </div>
               <button
                 onClick={() => setShowDetailModal(false)}
                 className="px-3.5 py-1.5 rounded-lg bg-[#2C2C2A] hover:bg-[#44443E] text-white text-xs font-semibold transition-colors"
