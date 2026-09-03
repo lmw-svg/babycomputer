@@ -307,7 +307,7 @@ export const DataImportExportModal: React.FC<DataImportExportModalProps> = ({
                   <h4 className="text-sm font-bold text-[#2C2C2A]">跨瀏覽器、PC 與手機多裝置同步狀態</h4>
                 </div>
                 <p className="text-xs text-[#78786E] leading-relaxed">
-                  系統透過 Firebase Firestore 雲端資料庫進行實時資料廣播。當您在電腦修改活動日期、設定或點名，手機開啟同一網址即可實時獲取一致的最新數據。
+                  系統透過 Supabase (PostgreSQL Realtime) 即時資料庫進行多端資料同步。當您在電腦修改活動日期、設定或點名，手機開啟同一網址即可實時獲取一致的最新數據。
                 </p>
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-1">
