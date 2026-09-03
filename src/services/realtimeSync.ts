@@ -17,8 +17,9 @@ export interface SyncInfo {
 const CLIENT_ID = `client_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
 const BROADCAST_CHANNEL_NAME = 'school_activities_realtime_channel';
 
-// Project-specific Supabase URL preconfigured from Project ID: tabpwnrixevedhobdbsx
+// Project-specific Supabase URL and anon public key preconfigured from Project ID: tabpwnrixevedhobdbsx
 export const DEFAULT_SUPABASE_URL = 'https://tabpwnrixevedhobdbsx.supabase.co';
+export const DEFAULT_SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InRhYnB3bnJpeGV2ZWRob2JkYnN4Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODg0MDM5NjcsImV4cCI6MjEwMzk3OTk2N30.NDM_4RdzDe0e2MpGOZVQlq-yQcxjwkjOtXtBSaCnQv0';
 
 export function getEffectiveSupabaseUrl(): string {
   if (typeof window !== 'undefined') {
@@ -33,7 +34,7 @@ export function getEffectiveSupabaseAnonKey(): string {
     const custom = localStorage.getItem('school_activities_supabase_anon_key');
     if (custom) return custom.trim();
   }
-  return (import.meta.env.VITE_SUPABASE_ANON_KEY || '').trim();
+  return (import.meta.env.VITE_SUPABASE_ANON_KEY || DEFAULT_SUPABASE_ANON_KEY).trim();
 }
 
 class RealtimeSyncManager {
