@@ -528,7 +528,7 @@ export const App: React.FC = () => {
       <footer className="bg-[#FAF9F5] border-t border-[#E5E2DA] py-4 px-6 text-center text-xs text-[#78786E] no-print">
         <div className="max-w-7xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-2">
           <span>學校課外活動組與支援小組智能管理系統 · 支援 Excel 導入導出與實時出席統計</span>
-          <span className="font-mono text-[#99998E]">目前權限：{getRoleInfo(role).title} ({role === 'admin' ? '全權管理' : role === 'head-teacher' ? '科主任管理' : role === 'teacher' ? '點名/出勤登記' : '唯讀查閱'})</span>
+          <span className="font-mono text-[#99998E]">目前權限：{getRoleInfo(role).title} ({role === 'admin' ? '全權管理' : role === 'head-teacher' ? '科主任 (建立小組與管理)' : role === 'teacher' ? '點名/出勤登記' : '唯讀查閱'})</span>
         </div>
       </footer>
 

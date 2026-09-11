@@ -147,7 +147,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                     ? 'bg-[#8C521E] text-white shadow-xs'
                     : 'text-[#68685E] hover:text-[#2C2C2A]'
                 }`}
-                title="科主任身份 (需密碼：管理所有小組與點名)"
+                title="科主任身份 (需密碼：建立活動小組、管理與點名)"
               >
                 {role !== 'head-teacher' && <Lock className="w-2.5 h-2.5 opacity-60" />}
                 <span>科主任</span>

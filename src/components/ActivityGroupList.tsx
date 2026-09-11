@@ -150,8 +150,8 @@ export const ActivityGroupList: React.FC<ActivityGroupListProps> = ({
             </button>
           </div>
 
-          {/* Add Group (Admin only) */}
-          {role === 'admin' && (
+          {/* Add Group (Admin and Head Teacher) */}
+          {(role === 'admin' || role === 'head-teacher') && (
             <button
               id="add-activity-group-btn"
               onClick={onAddGroup}

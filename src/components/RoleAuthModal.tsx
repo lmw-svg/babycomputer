@@ -42,6 +42,11 @@ export const RoleAuthModal: React.FC<RoleAuthModalProps> = ({
   // Admin password management state
   const [managePasswords, setManagePasswords] = useState(getRolePasswords());
   const [manageSuccessMsg, setManageSuccessMsg] = useState<string | null>(null);
+  const [showManagePasswords, setShowManagePasswords] = useState({
+    teacher: false,
+    'head-teacher': false,
+    admin: false,
+  });
 
   const roleInfo = getRoleInfo(targetRole);
 
@@ -133,7 +138,13 @@ export const RoleAuthModal: React.FC<RoleAuthModalProps> = ({
                   <span>{roleInfo.title}密碼</span>
                 </span>
                 <span className="text-[11px] text-[#78786E] font-normal">
-                  預設：<code className="bg-[#FAF9F5] px-1.5 py-0.5 rounded border border-[#E5E2DA] font-mono text-[#2C2C2A]">{DEFAULT_PASSWORDS[targetRole]}</code>
+                  {targetRole === 'teacher' ? (
+                    <>預設：<code className="bg-[#FAF9F5] px-1.5 py-0.5 rounded border border-[#E5E2DA] font-mono text-[#2C2C2A]">{DEFAULT_PASSWORDS.teacher}</code></>
+                  ) : (
+                    <span className="text-[#8C521E] font-medium flex items-center gap-1">
+                      <Lock className="w-3 h-3 text-[#8C521E]" /> 專屬保密 (不公開)
+                    </span>
+                  )}
                 </span>
               </label>
 
@@ -169,25 +180,38 @@ export const RoleAuthModal: React.FC<RoleAuthModalProps> = ({
             )}
 
             {/* Default credentials reminder box */}
-            <div className="p-3 bg-[#FAF9F5] rounded-xl border border-[#EAE7DE] text-[11px] text-[#78786E] space-y-1">
-              <div className="font-semibold text-[#4A4A42] flex items-center gap-1">
-                <Info className="w-3.5 h-3.5 text-[#485945]" />
-                <span>全校身份預設密碼速查：</span>
+            <div className="p-3 bg-[#FAF9F5] rounded-xl border border-[#EAE7DE] text-[11px] text-[#78786E] space-y-1.5">
+              <div className="font-semibold text-[#4A4A42] flex items-center justify-between">
+                <div className="flex items-center gap-1">
+                  <Info className="w-3.5 h-3.5 text-[#485945]" />
+                  <span>全校身份通行說明：</span>
+                </div>
+                <span className="text-[10px] text-[#8C521E] font-medium bg-[#FDF6ED] px-2 py-0.5 rounded-md border border-[#EED7B8] flex items-center gap-1">
+                  <Lock className="w-2.5 h-2.5" />
+                  <span>主任與管理員密碼不公開</span>
+                </span>
               </div>
               <div className="grid grid-cols-3 gap-1.5 pt-1 text-center font-mono">
-                <div className="bg-white p-1.5 rounded-lg border border-[#DDDCD4]">
-                  <span className="text-[#606056] text-[10px] block">教師</span>
-                  <strong className="text-[#2C5E32]">{DEFAULT_PASSWORDS.teacher}</strong>
+                <div className="bg-white p-2 rounded-lg border border-[#DDDCD4]">
+                  <span className="text-[#606056] text-[10px] block font-sans">教師通行碼</span>
+                  <strong className="text-[#2C5E32] text-xs">{DEFAULT_PASSWORDS.teacher}</strong>
                 </div>
-                <div className="bg-white p-1.5 rounded-lg border border-[#DDDCD4]">
-                  <span className="text-[#606056] text-[10px] block">科主任</span>
-                  <strong className="text-[#8C521E]">{DEFAULT_PASSWORDS['head-teacher']}</strong>
+                <div className="bg-[#FAF7F2] p-2 rounded-lg border border-[#EED7B8]">
+                  <span className="text-[#8C521E] text-[10px] block font-sans flex items-center justify-center gap-0.5">
+                    <Lock className="w-2.5 h-2.5" /> 科主任
+                  </span>
+                  <span className="text-[#A16207] text-xs font-sans font-bold">●●●●●● (不公開)</span>
                 </div>
-                <div className="bg-white p-1.5 rounded-lg border border-[#DDDCD4]">
-                  <span className="text-[#606056] text-[10px] block">管理員</span>
-                  <strong className="text-[#8C3A3A]">{DEFAULT_PASSWORDS.admin}</strong>
+                <div className="bg-[#FAF5F5] p-2 rounded-lg border border-[#F5CCCC]">
+                  <span className="text-[#8C3A3A] text-[10px] block font-sans flex items-center justify-center gap-0.5">
+                    <Lock className="w-2.5 h-2.5" /> 管理員
+                  </span>
+                  <span className="text-[#991B1B] text-xs font-sans font-bold">●●●●●● (不公開)</span>
                 </div>
               </div>
+              <p className="text-[10.5px] text-[#88887E] leading-normal pt-0.5">
+                💡 為保障學校活動與核心學生資料安全，科主任及管理員密碼為校方專屬特權憑證，已設為保密不公開。如需獲取權限，請向負責科主任或系統管理員查詢。
+              </p>
             </div>
 
             {/* Actions */}
@@ -235,35 +259,75 @@ export const RoleAuthModal: React.FC<RoleAuthModalProps> = ({
             <div className="space-y-3">
               <div>
                 <label className="block text-xs font-bold text-[#4A4A42] mb-1">教師身份密碼</label>
-                <input
-                  type="text"
-                  value={managePasswords.teacher}
-                  onChange={(e) => setManagePasswords({ ...managePasswords, teacher: e.target.value })}
-                  className="w-full px-3 py-2 text-xs rounded-xl border border-[#DDDCD4] bg-[#FAF9F5] font-mono"
-                  required
-                />
+                <div className="relative">
+                  <input
+                    type={showManagePasswords.teacher ? 'text' : 'password'}
+                    value={managePasswords.teacher}
+                    onChange={(e) => setManagePasswords({ ...managePasswords, teacher: e.target.value })}
+                    className="w-full px-3 py-2 pr-9 text-xs rounded-xl border border-[#DDDCD4] bg-[#FAF9F5] font-mono focus:bg-white focus:ring-1 focus:ring-[#485945]"
+                    required
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowManagePasswords({ ...showManagePasswords, teacher: !showManagePasswords.teacher })}
+                    className="absolute right-2.5 top-1/2 -translate-y-1/2 text-[#78786E] hover:text-[#2C2C2A]"
+                    tabIndex={-1}
+                  >
+                    {showManagePasswords.teacher ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
+                  </button>
+                </div>
               </div>
 
               <div>
-                <label className="block text-xs font-bold text-[#4A4A42] mb-1">科主任身份密碼</label>
-                <input
-                  type="text"
-                  value={managePasswords['head-teacher']}
-                  onChange={(e) => setManagePasswords({ ...managePasswords, 'head-teacher': e.target.value })}
-                  className="w-full px-3 py-2 text-xs rounded-xl border border-[#DDDCD4] bg-[#FAF9F5] font-mono"
-                  required
-                />
+                <label className="block text-xs font-bold text-[#4A4A42] mb-1 flex items-center justify-between">
+                  <span>科主任身份密碼</span>
+                  <span className="text-[10px] text-[#8C521E] font-medium flex items-center gap-0.5">
+                    <Lock className="w-2.5 h-2.5" /> 不公開保護
+                  </span>
+                </label>
+                <div className="relative">
+                  <input
+                    type={showManagePasswords['head-teacher'] ? 'text' : 'password'}
+                    value={managePasswords['head-teacher']}
+                    onChange={(e) => setManagePasswords({ ...managePasswords, 'head-teacher': e.target.value })}
+                    className="w-full px-3 py-2 pr-9 text-xs rounded-xl border border-[#DDDCD4] bg-[#FAF9F5] font-mono focus:bg-white focus:ring-1 focus:ring-[#485945]"
+                    required
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowManagePasswords({ ...showManagePasswords, 'head-teacher': !showManagePasswords['head-teacher'] })}
+                    className="absolute right-2.5 top-1/2 -translate-y-1/2 text-[#78786E] hover:text-[#2C2C2A]"
+                    tabIndex={-1}
+                  >
+                    {showManagePasswords['head-teacher'] ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
+                  </button>
+                </div>
               </div>
 
               <div>
-                <label className="block text-xs font-bold text-[#4A4A42] mb-1">管理員身份密碼</label>
-                <input
-                  type="text"
-                  value={managePasswords.admin}
-                  onChange={(e) => setManagePasswords({ ...managePasswords, admin: e.target.value })}
-                  className="w-full px-3 py-2 text-xs rounded-xl border border-[#DDDCD4] bg-[#FAF9F5] font-mono"
-                  required
-                />
+                <label className="block text-xs font-bold text-[#4A4A42] mb-1 flex items-center justify-between">
+                  <span>管理員身份密碼</span>
+                  <span className="text-[10px] text-[#8C3A3A] font-medium flex items-center gap-0.5">
+                    <Lock className="w-2.5 h-2.5" /> 最高特權保密
+                  </span>
+                </label>
+                <div className="relative">
+                  <input
+                    type={showManagePasswords.admin ? 'text' : 'password'}
+                    value={managePasswords.admin}
+                    onChange={(e) => setManagePasswords({ ...managePasswords, admin: e.target.value })}
+                    className="w-full px-3 py-2 pr-9 text-xs rounded-xl border border-[#DDDCD4] bg-[#FAF9F5] font-mono focus:bg-white focus:ring-1 focus:ring-[#485945]"
+                    required
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowManagePasswords({ ...showManagePasswords, admin: !showManagePasswords.admin })}
+                    className="absolute right-2.5 top-1/2 -translate-y-1/2 text-[#78786E] hover:text-[#2C2C2A]"
+                    tabIndex={-1}
+                  >
+                    {showManagePasswords.admin ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
+                  </button>
+                </div>
               </div>
             </div>
 

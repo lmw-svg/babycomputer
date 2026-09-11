@@ -105,7 +105,7 @@ export const Dashboard: React.FC<DashboardProps> = ({
         <div className="relative z-10 max-w-3xl">
           <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-white/15 text-[#FAF9F5] text-xs font-semibold backdrop-blur mb-3 border border-white/15">
             <Sparkles className="w-3.5 h-3.5 text-[#E6C687]" />
-            <span>當前權限：{role === 'admin' ? '管理員 (全權編輯與資料管理)' : role === 'head-teacher' ? '科主任 (管理小組與點名)' : role === 'teacher' ? '教師 (點名記錄與學生查閱)' : '訪客 (唯讀查閱)'}</span>
+            <span>當前權限：{role === 'admin' ? '管理員 (全權編輯與資料管理)' : role === 'head-teacher' ? '科主任 (建立小組、管理與點名)' : role === 'teacher' ? '教師 (點名記錄與學生查閱)' : '訪客 (唯讀查閱)'}</span>
           </div>
           <h1 className="text-2xl sm:text-3xl font-bold tracking-tight text-[#FAF9F5] mb-2">
             課外活動小組支援與出席統計工作台
@@ -139,7 +139,7 @@ export const Dashboard: React.FC<DashboardProps> = ({
               <Users className="w-4 h-4" />
               <span>學生總表與S支援</span>
             </button>
-            {role === 'admin' && onAddActivity && (
+            {(role === 'admin' || role === 'head-teacher') && onAddActivity && (
               <button
                 id="dash-add-activity-btn"
                 onClick={onAddActivity}

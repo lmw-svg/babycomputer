@@ -86,7 +86,7 @@ export function getRoleInfo(role: UserRole): {
         textColor: 'text-[#8C521E]',
         bgColor: 'bg-[#FDF6ED]',
         borderColor: 'border-[#EED7B8]',
-        description: '主任權限：可查閱管理所有組別、點名登記、自訂加堂、加入/移出組內學生及匯出各類報表。',
+        description: '主任權限：可建立活動小組、查閱與修改所有組別設定、點名登記、自訂加堂、加入/移出組內學生及匯出各類報表。',
         needsPassword: true,
       };
     case 'teacher':
