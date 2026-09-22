@@ -76,32 +76,16 @@ export const Navbar: React.FC<NavbarProps> = ({
 
           {/* Controls: Role switcher, Privacy Mask, Import/Export */}
           <div className="flex items-center gap-2 sm:gap-3">
-            {/* Privacy Phone Masking Toggle */}
-            {role === 'guest' ? (
-              <div
-                id="privacy-toggle-btn"
-                title="訪客身份禁止查閱學生聯絡電話（若需查看請切換為教師或管理員）"
-                className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium border bg-[#FDF6ED] text-[#8C521E] border-[#EED7B8] cursor-not-allowed select-none"
-              >
-                <Lock className="w-3.5 h-3.5 text-[#8C521E]" />
-                <span className="hidden md:inline">電話已隱藏 (訪客保密)</span>
-                <span className="md:hidden">已保密</span>
-              </div>
-            ) : (
-              <button
-                id="privacy-toggle-btn"
-                onClick={() => setMaskPhone(!maskPhone)}
-                title={maskPhone ? '已啟用電話隱私遮蔽 (點擊取消)' : '點擊隱藏學生電話號碼'}
-                className={`inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium border transition-colors ${
-                  maskPhone 
-                    ? 'bg-[#FDF6ED] text-[#8C521E] border-[#EED7B8] hover:bg-[#FAEEDB]' 
-                    : 'bg-[#EFEFEA] text-[#4A4A42] border-[#DDDCD4] hover:bg-[#E5E5DD]'
-                }`}
-              >
-                {maskPhone ? <EyeOff className="w-3.5 h-3.5 text-[#8C521E]" /> : <Eye className="w-3.5 h-3.5" />}
-                <span className="hidden md:inline">{maskPhone ? '電話已遮蔽' : '遮蔽電話'}</span>
-              </button>
-            )}
+            {/* Privacy Phone Status: Strictly Non-public */}
+            <div
+              id="privacy-toggle-btn"
+              title="校方私隱保護規定：全校學生聯絡電話已設定為完全不公開"
+              className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-semibold border bg-[#FDF6ED] text-[#8C521E] border-[#EED7B8] cursor-default select-none shadow-xs"
+            >
+              <Lock className="w-3.5 h-3.5 text-[#8C521E]" />
+              <span className="hidden md:inline">聯絡電話完全不公開</span>
+              <span className="md:hidden">電話不公開</span>
+            </div>
 
             {/* Role Switcher with Password Protection indicator */}
             <div className="flex items-center bg-[#EFEFEA] p-1 rounded-xl border border-[#DDDCD4]">

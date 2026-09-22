@@ -150,7 +150,7 @@ export function exportSingleGroupRollCallToExcel(
       '學生姓名': s?.name || '',
       '性別': s?.gender || '',
       '放學方式': en.dismissalMethod || '自行放學',
-      '聯絡電話': maskPhone && s?.phone ? s.phone.slice(0, 2) + '****' + s.phone.slice(-2) : s?.phone || '',
+      '聯絡電話': '不公開',
       '學生編別': en.studentId,
     };
 
@@ -202,7 +202,7 @@ export function generateFullSchoolExcelBlob(data: AppDataState, maskPhone: boole
     '年級': s.grade,
     'S支援': s.isSSupport ? '✓' : '',
     '主要支援需要': s.mainSupportNeed || '',
-    '聯絡電話': maskPhone && s.phone ? s.phone.slice(0, 2) + '****' + s.phone.slice(-2) : s.phone || '',
+    '聯絡電話': '不公開',
     '現時狀態': s.status,
     '備註': s.remarks || '',
   }));
@@ -224,7 +224,7 @@ export function generateFullSchoolExcelBlob(data: AppDataState, maskPhone: boole
       '學生姓名': s?.name || '',
       '性別': s?.gender || '',
       '放學方式': en.dismissalMethod || '自行放學',
-      '聯絡電話': maskPhone && s?.phone ? s.phone.slice(0, 2) + '****' + s.phone.slice(-2) : s?.phone || '',
+      '聯絡電話': '不公開',
       '支援需要': s?.mainSupportNeed || '',
       '學生狀態': s?.status || '在讀',
       '活動小組名稱': g?.name || '',
@@ -282,7 +282,7 @@ export function generateSingleGroupExcelBlob(
       '學生姓名': s?.name || '',
       '性別': s?.gender || '',
       '放學方式': en.dismissalMethod || '自行放學',
-      '聯絡電話': maskPhone && s?.phone ? s.phone.slice(0, 2) + '****' + s.phone.slice(-2) : s?.phone || '',
+      '聯絡電話': '不公開',
       '學生編別': en.studentId,
     };
 
@@ -553,27 +553,27 @@ export function downloadGroupEnrollmentSampleExcel(group?: ActivityGroup): void 
       '學號': '05',
       '學生姓名': '張偉強',
       '性別': '男',
-      '放學方式': '課後託管班',
+      '放學方式': '返回課後託管班',
       '聯絡電話': '93456789',
       'S支援': '否',
-      '備註': '',
+      '備註': '活動後返回課託',
     },
     {
       '班別': '6C',
       '學號': '23',
       '學生姓名': '黃樂童',
       '性別': '女',
-      '放學方式': '校車',
+      '放學方式': '家長接送',
       '聯絡電話': '94567890',
       'S支援': '否',
-      '備註': '校車2號線',
+      '備註': '家長在校門接送',
     },
     {
       '班別': '3A',
       '學號': '08',
       '學生姓名': '周梓軒',
       '性別': '男',
-      '放學方式': '留校',
+      '放學方式': '其他',
       '聯絡電話': '95678901',
       'S支援': '是',
       '備註': '需關顧',
@@ -588,7 +588,7 @@ export function downloadGroupEnrollmentSampleExcel(group?: ActivityGroup): void 
     { wch: 8 },  // 學號
     { wch: 14 }, // 學生姓名
     { wch: 8 },  // 性別
-    { wch: 14 }, // 放學方式
+    { wch: 16 }, // 放學方式
     { wch: 14 }, // 聯絡電話
     { wch: 10 }, // S支援
     { wch: 20 }, // 備註
@@ -611,9 +611,9 @@ export function downloadGroupEnrollmentSampleCsv(group?: ActivityGroup): void {
     '班別,學號,學生姓名,性別,放學方式,聯絡電話,S支援,備註',
     '4B,11,陳小明,男,自行放學,91234567,否,常規隊員',
     '4B,12,李美美,女,家長接送,92345678,是,樂隊小提琴部',
-    '5A,05,張偉強,男,課後託管班,93456789,否,',
-    '6C,23,黃樂童,女,校車,94567890,否,校車2號線',
-    '3A,08,周梓軒,男,留校,95678901,是,需關顧',
+    '5A,05,張偉強,男,返回課後託管班,93456789,否,活動後返回課託',
+    '6C,23,黃樂童,女,家長接送,94567890,否,家長在校門接送',
+    '3A,08,周梓軒,男,其他,95678901,是,需關顧',
   ].join('\r\n');
 
   // Prefix UTF-8 BOM so Excel opens Chinese characters accurately
@@ -636,10 +636,8 @@ export function downloadGroupEnrollmentSampleCsv(group?: ActivityGroup): void {
  */
 function normalizeDismissalMethod(val: any): DismissalMethod {
   const str = String(val || '').trim();
+  if (str.includes('託管') || str.includes('課託') || str.includes('返回')) return '返回課後託管班';
   if (str.includes('家長') || str.includes('接送')) return '家長接送';
-  if (str.includes('託管') || str.includes('課託')) return '課後託管班';
-  if (str.includes('校車') || str.includes('保母車')) return '校車';
-  if (str.includes('留校') || str.includes('補習') || str.includes('留堂')) return '留校';
   if (str.includes('其他')) return '其他';
   return '自行放學';
 }

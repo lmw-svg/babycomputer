@@ -485,6 +485,7 @@ export const App: React.FC = () => {
             }}
             onBatchEnrollStudents={handleBatchEnrollStudents}
             onRemoveEnrollment={handleRemoveEnrollment}
+            onUpdateDismissal={handleUpdateDismissal}
           />
         )}
 

@@ -133,7 +133,6 @@ export const StudentMasterList: React.FC<StudentMasterListProps> = ({
         s.id.toLowerCase().includes(search.toLowerCase()) ||
         s.name.toLowerCase().includes(search.toLowerCase()) ||
         s.class.toLowerCase().includes(search.toLowerCase()) ||
-        (role !== 'guest' && s.phone && s.phone.includes(search)) ||
         (s.mainSupportNeed && s.mainSupportNeed.toLowerCase().includes(search.toLowerCase())) ||
         s.joinedGroups.some(g => g.name.toLowerCase().includes(search.toLowerCase()));
 
@@ -636,14 +635,10 @@ export const StudentMasterList: React.FC<StudentMasterListProps> = ({
               )}
               <span className="font-semibold text-[#4A4A42]">學生列表檔案（基本資料、S支援欄位及個人檔案）</span>
             </div>
-            {role === 'guest' ? (
-              <span className="text-[11px] font-semibold text-[#8C521E] bg-[#FDF6ED] px-2 py-0.5 rounded-md border border-[#EED7B8] flex items-center gap-1">
-                <Lock className="w-3 h-3 text-[#8C521E]" />
-                <span>訪客限制：已禁止查閱聯絡電話（僅可看出席與分組）</span>
-              </span>
-            ) : (
-              <span className="text-[11px] text-[#78786E]">電話號碼已{maskPhone ? '自動遮蔽' : '公開顯示'}</span>
-            )}
+            <span className="text-[11px] font-semibold text-[#8C521E] bg-[#FDF6ED] px-2.5 py-1 rounded-md border border-[#EED7B8] flex items-center gap-1.5 shadow-xs">
+              <Lock className="w-3.5 h-3.5 text-[#8C521E]" />
+              <span>私隱保護：學生聯絡電話已全面設為完全不公開</span>
+            </span>
           </div>
 
           <div className="overflow-x-auto">
@@ -655,11 +650,11 @@ export const StudentMasterList: React.FC<StudentMasterListProps> = ({
                   <th className="px-3 py-3">班別</th>
                   <th className="px-3 py-3">學號</th>
                   <th className="px-4 py-3">學生姓名</th>
-                  <th className="px-2 py-3 text-center">性別</th>
+                  <th className="px-3 py-3 text-center">性別</th>
                   <th className="px-3 py-3">年級</th>
                   <th className="px-3 py-3 text-center">S支援 (✓)</th>
                   <th className="px-4 py-3">主要支援需要</th>
-                  <th className="px-4 py-3">聯絡電話</th>
+                  <th className="px-4 py-3">聯絡電話 (不公開)</th>
                   <th className="px-3 py-3">現時狀態</th>
                   <th className="px-3 py-3">備註</th>
                   {canEdit && <th className="px-3 py-3 text-right">操作</th>}
@@ -726,19 +721,13 @@ export const StudentMasterList: React.FC<StudentMasterListProps> = ({
                         )}
                       </td>
                       <td className="px-4 py-3 font-mono">
-                        {role === 'guest' ? (
-                          <span className="inline-flex items-center gap-1 text-[#99998E] text-[11px] font-sans italic" title="訪客身份無權限查閱學生電話">
-                            <Lock className="w-3 h-3 text-[#99998E]" />
-                            <span>訪客無權查閱</span>
+                        {student.phone ? (
+                          <span className="inline-flex items-center gap-1 text-[#8C521E] text-[11px] font-sans font-medium" title="學生聯絡電話已全面設為完全不公開 (私隱保護)">
+                            <Lock className="w-3 h-3 text-[#8C521E]" />
+                            <span>完全不公開</span>
                           </span>
-                        ) : student.phone ? (
-                          maskPhone ? (
-                            <span>{student.phone.slice(0, 2)}****{student.phone.slice(-2)}</span>
-                          ) : (
-                            <span className="text-[#2C2C2A]">{student.phone}</span>
-                          )
                         ) : (
-                          <span className="text-[#B8B8AC]">未登記</span>
+                          <span className="text-[#B8B8AC] text-xs">未登記</span>
                         )}
                       </td>
                       <td className="px-3 py-3">

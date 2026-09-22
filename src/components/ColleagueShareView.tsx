@@ -128,27 +128,13 @@ export const ColleagueShareView: React.FC<ColleagueShareViewProps> = ({
         </div>
 
         <div className="flex items-center gap-2">
-          {isGuest ? (
-            <div
-              className="px-3 py-1.5 rounded-lg text-xs font-semibold border bg-[#FDF6ED] text-[#8C521E] border-[#EED7B8] flex items-center gap-1.5 cursor-not-allowed"
-              title="訪客身份禁止查閱學生聯絡電話（請切換為教師或管理員）"
-            >
-              <Lock className="w-3.5 h-3.5 text-[#8C521E]" />
-              <span>電話已隱藏 (訪客限制)</span>
-            </div>
-          ) : (
-            <button
-              onClick={() => setMaskPhone(!maskPhone)}
-              className={`px-3 py-1.5 rounded-lg text-xs font-semibold border flex items-center gap-1.5 transition-colors ${
-                maskPhone
-                  ? 'bg-[#FDF6ED] text-[#8C521E] border-[#EED7B8]'
-                  : 'bg-[#FAF9F5] text-[#4A4A42] border-[#DDDCD4] hover:bg-[#EFEFEA]'
-              }`}
-            >
-              {maskPhone ? <EyeOff className="w-3.5 h-3.5 text-[#8C521E]" /> : <Eye className="w-3.5 h-3.5" />}
-              <span>{maskPhone ? '電話已遮蔽 (符合私隱)' : '顯示完整電話'}</span>
-            </button>
-          )}
+          <div
+            className="px-3 py-1.5 rounded-lg text-xs font-semibold border bg-[#FDF6ED] text-[#8C521E] border-[#EED7B8] flex items-center gap-1.5 shadow-2xs"
+            title="因應學校私隱規範，學生聯絡電話全面設為完全不公開"
+          >
+            <Lock className="w-3.5 h-3.5 text-[#8C521E]" />
+            <span>聯絡電話完全不公開</span>
+          </div>
 
           <button
             id="share-export-excel-btn"
@@ -245,7 +231,7 @@ export const ColleagueShareView: React.FC<ColleagueShareViewProps> = ({
                 <th className="border border-[#DDDCD4] px-3 py-2 text-left min-w-24">學生姓名</th>
                 <th className="border border-[#DDDCD4] px-2 py-2 w-10">性別</th>
                 <th className="border border-[#DDDCD4] px-2 py-2 w-20">放學方式</th>
-                <th className="border border-[#DDDCD4] px-2 py-2 w-24">聯絡電話</th>
+                <th className="border border-[#DDDCD4] px-2 py-2 w-24">聯絡電話 (不公開)</th>
                 <th className="border border-[#DDDCD4] px-2 py-2 w-16">學生編別</th>
                 {displayDates.map((date, idx) => (
                   <th key={idx} className="border border-[#DDDCD4] px-2 py-2 w-14 bg-[#EEF5EF]">
@@ -294,20 +280,24 @@ export const ColleagueShareView: React.FC<ColleagueShareViewProps> = ({
                       {s?.gender || '-'}
                     </td>
                     <td className="border border-[#DDDCD4] px-2 py-1.5 font-medium text-[#4A4A42]">
-                      {en.dismissalMethod || '自行放學'}
+                      <span className={`px-1.5 py-0.5 rounded text-[11px] font-semibold ${
+                        en.dismissalMethod === '返回課後託管班'
+                          ? 'bg-[#F5F0FF] text-[#6B21A8]'
+                          : en.dismissalMethod === '家長接送'
+                          ? 'bg-[#EBF2FA] text-[#1E4D8C]'
+                          : en.dismissalMethod === '其他'
+                          ? 'bg-[#FDF6ED] text-[#8C521E]'
+                          : ''
+                      }`}>
+                        {en.dismissalMethod || '自行放學'}
+                      </span>
                     </td>
                     <td className="border border-[#DDDCD4] px-2 py-1.5 font-mono text-[10px] text-[#4A4A42]">
-                      {isGuest ? (
-                        <span className="text-[#99998E] italic flex items-center justify-center gap-0.5 text-[9px]">
-                          <Lock className="w-2.5 h-2.5 text-[#99998E]" />
-                          <span>訪客保密</span>
+                      {s?.phone ? (
+                        <span className="text-[#8C521E] flex items-center justify-center gap-0.5 text-[10px] font-sans font-medium" title="學生電話完全不公開">
+                          <Lock className="w-2.5 h-2.5 text-[#8C521E]" />
+                          <span>完全不公開</span>
                         </span>
-                      ) : s?.phone ? (
-                        maskPhone ? (
-                          <span>{s.phone.slice(0, 2)}****{s.phone.slice(-2)}</span>
-                        ) : (
-                          <span>{s.phone}</span>
-                        )
                       ) : (
                         '-'
                       )}

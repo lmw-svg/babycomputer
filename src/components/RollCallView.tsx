@@ -20,9 +20,10 @@ import {
   Lock,
   UserPlus,
   UserMinus,
-  FileSpreadsheet
+  FileSpreadsheet,
+  ChevronDown
 } from 'lucide-react';
-import { ActivityGroup, Student, Enrollment, AttendanceRecord, AttendanceStatus, UserRole, WeekDay, DismissalMethod } from '../types';
+import { ActivityGroup, Student, Enrollment, AttendanceRecord, AttendanceStatus, UserRole, WeekDay, DismissalMethod, DISMISSAL_METHODS } from '../types';
 import { exportSingleGroupRollCallToExcel, generateSingleGroupExcelBlob } from '../utils/excel';
 import { normalizeSingleDateInput } from '../utils/dateUtils';
 import { getAccessToken, googleSignIn } from '../services/googleAuth';
@@ -47,7 +48,22 @@ interface RollCallViewProps {
     newStudentsToCreate?: Student[]
   ) => void;
   onRemoveEnrollment?: (enrollmentId: string) => void;
+  onUpdateDismissal?: (enrollmentId: string, method: DismissalMethod) => void;
 }
+
+export const getDismissalBadgeClass = (method?: string) => {
+  switch (method) {
+    case '返回課後託管班':
+      return 'bg-[#F5F0FF] text-[#6B21A8] border-[#D8B4FE] hover:border-[#9333EA]';
+    case '家長接送':
+      return 'bg-[#EBF2FA] text-[#1E4D8C] border-[#BED5EE] hover:border-[#5287C6]';
+    case '其他':
+      return 'bg-[#FDF6ED] text-[#8C521E] border-[#EED7B8] hover:border-[#C88A3B]';
+    case '自行放學':
+    default:
+      return 'bg-[#F5F5F0] text-[#4A4A42] border-[#DDDCD4] hover:border-[#99998E]';
+  }
+};
 
 const WEEKDAYS: WeekDay[] = ['星期一', '星期二', '星期三', '星期四', '星期五', '星期六'];
 
@@ -65,6 +81,7 @@ export const RollCallView: React.FC<RollCallViewProps> = ({
   onEnrollStudent,
   onBatchEnrollStudents,
   onRemoveEnrollment,
+  onUpdateDismissal,
 }) => {
   const [selectedDayFilter, setSelectedDayFilter] = useState<string>('全部');
   const [selectedGroupId, setSelectedGroupId] = useState<string>(
@@ -77,6 +94,15 @@ export const RollCallView: React.FC<RollCallViewProps> = ({
   const [isExportingToDrive, setIsExportingToDrive] = useState(false);
   const [driveExportSuccessUrl, setDriveExportSuccessUrl] = useState<string | null>(null);
   const [isBatchEnrollOpen, setIsBatchEnrollOpen] = useState(false);
+  const [dismissalToast, setDismissalToast] = useState<string | null>(null);
+
+  const handleDismissalChange = (enrollmentId: string, studentName: string, newMethod: DismissalMethod) => {
+    if (onUpdateDismissal) {
+      onUpdateDismissal(enrollmentId, newMethod);
+      setDismissalToast(`已更新「${studentName}」的放學方式為：${newMethod}`);
+      setTimeout(() => setDismissalToast(null), 3500);
+    }
+  };
 
   // Filter groups by selected day if specified
   const filteredGroups = useMemo(() => {
@@ -659,6 +685,13 @@ export const RollCallView: React.FC<RollCallViewProps> = ({
           </span>
         </div>
 
+        {dismissalToast && (
+          <div className="mb-3 px-3.5 py-2 bg-[#EEF5EF] border border-[#D0E4D3] text-[#2C5E32] rounded-xl text-xs font-semibold flex items-center gap-2 shadow-xs animate-fade-in">
+            <CheckCircle2 className="w-4 h-4 shrink-0 text-[#2C5E32]" />
+            <span>{dismissalToast}</span>
+          </div>
+        )}
+
         {groupEnrollments.length === 0 ? (
           <div className="text-center py-16 text-[#99998E] text-xs">
             此活動小組目前尚未加入符合搜尋條件的學生。
@@ -673,8 +706,15 @@ export const RollCallView: React.FC<RollCallViewProps> = ({
                   <th className="px-3 py-3">學號</th>
                   <th className="px-4 py-3">學生姓名</th>
                   <th className="px-2 py-3 text-center">性別</th>
-                  <th className="px-3 py-3">放學方式</th>
-                  <th className="px-4 py-3">緊急聯絡電話</th>
+                  <th className="px-3 py-3 min-w-[145px]">
+                    <div className="flex items-center gap-1">
+                      <span>放學方式</span>
+                      {role !== 'guest' && (
+                        <span className="font-normal text-[10px] text-[#485945] bg-[#ECEFE9] px-1 rounded">可改動</span>
+                      )}
+                    </div>
+                  </th>
+                  <th className="px-4 py-3">聯絡電話 (不公開)</th>
                   <th className="px-4 py-3 text-center min-w-56">點名狀態 (P / A / L / NA)</th>
                   <th className="px-4 py-3 min-w-44">備註 (請假原因/說明)</th>
                   <th className="px-3 py-3 text-center">歷史</th>
@@ -689,6 +729,7 @@ export const RollCallView: React.FC<RollCallViewProps> = ({
                   const record = currentAttendanceMap.get(en.studentId);
                   const currentStatus: AttendanceStatus = record ? record.status : 'NA';
                   const note = record?.note || '';
+                  const studentDisplayName = s?.name || en.studentId;
 
                   return (
                     <tr 
@@ -702,7 +743,7 @@ export const RollCallView: React.FC<RollCallViewProps> = ({
                       <td className="px-3 py-3 font-mono text-[#78786E]">{s?.classNo || '-'}</td>
                       <td className="px-4 py-3 font-bold text-[#2C2C2A]">
                         <div className="flex items-center gap-1.5">
-                          <span>{s?.name || en.studentId}</span>
+                          <span>{studentDisplayName}</span>
                           {s?.isSSupport && (
                             <span className="px-1.5 py-0.2 rounded text-[10px] font-semibold bg-[#FDF6ED] text-[#8C521E] border border-[#EED7B8]">
                               S支援
@@ -712,22 +753,38 @@ export const RollCallView: React.FC<RollCallViewProps> = ({
                       </td>
                       <td className="px-2 py-3 text-center font-medium text-[#78786E]">{s?.gender || '-'}</td>
                       <td className="px-3 py-3">
-                        <span className="px-2 py-0.5 rounded-full text-[11px] font-medium bg-[#EFEFEA] text-[#4A4A42]">
-                          {en.dismissalMethod || '自行放學'}
-                        </span>
+                        {role === 'guest' ? (
+                          <span className={`px-2 py-0.5 rounded-md text-[11px] font-semibold border ${getDismissalBadgeClass(en.dismissalMethod || '自行放學')}`}>
+                            {en.dismissalMethod || '自行放學'}
+                          </span>
+                        ) : (
+                          <div className="relative inline-block" title="點擊即可隨意改動該學生的放學方式">
+                            <select
+                              value={en.dismissalMethod || '自行放學'}
+                              onChange={(e) => {
+                                const newMethod = e.target.value as DismissalMethod;
+                                handleDismissalChange(en.id, studentDisplayName, newMethod);
+                              }}
+                              className={`appearance-none text-xs font-semibold pl-2.5 pr-6 py-1 rounded-lg border cursor-pointer transition-all focus:ring-2 focus:ring-[#485945] focus:outline-none shadow-2xs ${getDismissalBadgeClass(en.dismissalMethod || '自行放學')}`}
+                            >
+                              {DISMISSAL_METHODS.map((method) => (
+                                <option key={method} value={method} className="bg-white text-[#2C2C2A] font-semibold py-1">
+                                  {method}
+                                </option>
+                              ))}
+                            </select>
+                            <div className="pointer-events-none absolute right-1.5 top-1/2 -translate-y-1/2 text-current opacity-60">
+                              <ChevronDown className="w-3.5 h-3.5" />
+                            </div>
+                          </div>
+                        )}
                       </td>
                       <td className="px-4 py-3 font-mono">
-                        {role === 'guest' ? (
-                          <span className="inline-flex items-center gap-1 text-[#99998E] text-[11px] font-sans italic" title="訪客身份無權限查閱電話">
-                            <Lock className="w-3 h-3 text-[#99998E]" />
-                            <span>訪客無權查閱</span>
+                        {s?.phone ? (
+                          <span className="inline-flex items-center gap-1 text-[#8C521E] text-[11px] font-sans font-medium" title="學生聯絡電話已全面設為完全不公開 (私隱保護)">
+                            <Lock className="w-3 h-3 text-[#8C521E]" />
+                            <span>完全不公開</span>
                           </span>
-                        ) : s?.phone ? (
-                          maskPhone ? (
-                            <span>{s.phone.slice(0, 2)}****{s.phone.slice(-2)}</span>
-                          ) : (
-                            <span className="text-[#2C2C2A]">{s.phone}</span>
-                          )
                         ) : (
                           <span className="text-[#B8B8AC]">-</span>
                         )}

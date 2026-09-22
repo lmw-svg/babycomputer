@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { X, UserPlus, AlertCircle } from 'lucide-react';
-import { Student, ActivityGroup, Enrollment, DismissalMethod } from '../types';
+import { Student, ActivityGroup, Enrollment, DismissalMethod, DISMISSAL_METHODS } from '../types';
 
 interface QuickEnrollModalProps {
   isOpen: boolean;
@@ -12,8 +12,6 @@ interface QuickEnrollModalProps {
   enrollments: Enrollment[];
   onEnroll: (groupId: string, studentId: string, dismissalMethod: DismissalMethod) => void;
 }
-
-const DISMISSAL_METHODS: DismissalMethod[] = ['自行放學', '家長接送', '課後託管班', '校車', '留校', '其他'];
 
 export const QuickEnrollModal: React.FC<QuickEnrollModalProps> = ({
   isOpen,

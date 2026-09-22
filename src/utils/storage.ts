@@ -58,6 +58,19 @@ function sanitizeLoadedData(data: AppDataState): { sanitized: AppDataState; modi
     return g;
   });
 
+  const rawEnrollments = Array.isArray(data.enrollments) ? data.enrollments : INITIAL_ENROLLMENTS;
+  const sanitizedEnrollments: Enrollment[] = rawEnrollments.map(en => {
+    let method: DismissalMethod = en.dismissalMethod;
+    if ((en.dismissalMethod as string) === '課後託管班') {
+      method = '返回課後託管班';
+      modified = true;
+    } else if ((en.dismissalMethod as string) === '校車' || (en.dismissalMethod as string) === '留校') {
+      method = '自行放學';
+      modified = true;
+    }
+    return method !== en.dismissalMethod ? { ...en, dismissalMethod: method } : en;
+  });
+
   const sanitizedAttendance = Array.isArray(data.attendanceRecords) ? data.attendanceRecords : INITIAL_ATTENDANCE_RECORDS;
   const sanitizedSettings = data.settings || { maskPhone: false, defaultGroupId: 'S002' };
 
@@ -65,7 +78,7 @@ function sanitizeLoadedData(data: AppDataState): { sanitized: AppDataState; modi
     sanitized: {
       students: Array.isArray(data.students) ? data.students : INITIAL_STUDENTS,
       activityGroups: sanitizedGroups,
-      enrollments: Array.isArray(data.enrollments) ? data.enrollments : INITIAL_ENROLLMENTS,
+      enrollments: sanitizedEnrollments,
       attendanceRecords: sanitizedAttendance,
       settings: sanitizedSettings,
       lastUpdated: data.lastUpdated !== undefined ? data.lastUpdated : (data.isInitialDefault ? 0 : Date.now()),

@@ -20,9 +20,10 @@ import {
   EyeOff,
   FileSpreadsheet,
   Download,
-  FileText
+  FileText,
+  ChevronDown
 } from 'lucide-react';
-import { ActivityGroup, Enrollment, Student, UserRole, ActivityCategory, WeekDay, DismissalMethod } from '../types';
+import { ActivityGroup, Enrollment, Student, UserRole, ActivityCategory, WeekDay, DismissalMethod, DISMISSAL_METHODS } from '../types';
 import { BatchEnrollModal } from './BatchEnrollModal';
 import { downloadGroupEnrollmentSampleExcel, downloadGroupEnrollmentSampleCsv, exportSingleGroupRollCallToExcel } from '../utils/excel';
 
@@ -620,7 +621,10 @@ export const ActivityGroupList: React.FC<ActivityGroupListProps> = ({
                         <th className="px-3 py-2">學生姓名</th>
                         <th className="px-3 py-2">性別</th>
                         <th className="px-3 py-2">S支援</th>
-                        <th className="px-3 py-2">放學方式</th>
+                        <th className="px-3 py-2 min-w-[130px]">
+                          <span>放學方式</span>
+                          {role !== 'guest' && <span className="font-normal text-[10px] text-[#485945] ml-1">(可改動)</span>}
+                        </th>
                         {role !== 'guest' && <th className="px-3 py-2 text-right">操作</th>}
                       </tr>
                     </thead>
@@ -644,7 +648,49 @@ export const ActivityGroupList: React.FC<ActivityGroupListProps> = ({
                                 '-'
                               )}
                             </td>
-                            <td className="px-3 py-2">{en.dismissalMethod || '自行放學'}</td>
+                            <td className="px-3 py-2">
+                              {role === 'guest' || !onUpdateDismissal ? (
+                                <span className={`px-2 py-0.5 rounded-md text-[11px] font-semibold border ${
+                                  en.dismissalMethod === '返回課後託管班'
+                                    ? 'bg-[#F5F0FF] text-[#6B21A8] border-[#D8B4FE]'
+                                    : en.dismissalMethod === '家長接送'
+                                    ? 'bg-[#EBF2FA] text-[#1E4D8C] border-[#BED5EE]'
+                                    : en.dismissalMethod === '其他'
+                                    ? 'bg-[#FDF6ED] text-[#8C521E] border-[#EED7B8]'
+                                    : 'bg-[#F5F5F0] text-[#4A4A42] border-[#DDDCD4]'
+                                }`}>
+                                  {en.dismissalMethod || '自行放學'}
+                                </span>
+                              ) : (
+                                <div className="relative inline-block" title="教師可隨意點擊改動該學生在此活動的放學方式">
+                                  <select
+                                    value={en.dismissalMethod || '自行放學'}
+                                    onChange={(e) => {
+                                      const newMethod = e.target.value as DismissalMethod;
+                                      onUpdateDismissal(en.id, newMethod);
+                                    }}
+                                    className={`appearance-none text-xs font-semibold pl-2 pr-6 py-0.5 rounded-lg border cursor-pointer transition-all focus:ring-2 focus:ring-[#485945] focus:outline-none ${
+                                      en.dismissalMethod === '返回課後託管班'
+                                        ? 'bg-[#F5F0FF] text-[#6B21A8] border-[#D8B4FE]'
+                                        : en.dismissalMethod === '家長接送'
+                                        ? 'bg-[#EBF2FA] text-[#1E4D8C] border-[#BED5EE]'
+                                        : en.dismissalMethod === '其他'
+                                        ? 'bg-[#FDF6ED] text-[#8C521E] border-[#EED7B8]'
+                                        : 'bg-[#F5F5F0] text-[#4A4A42] border-[#DDDCD4]'
+                                    }`}
+                                  >
+                                    {DISMISSAL_METHODS.map((method) => (
+                                      <option key={method} value={method} className="bg-white text-[#2C2C2A] font-semibold">
+                                        {method}
+                                      </option>
+                                    ))}
+                                  </select>
+                                  <div className="pointer-events-none absolute right-1.5 top-1/2 -translate-y-1/2 text-current opacity-70">
+                                    <ChevronDown className="w-3 h-3" />
+                                  </div>
+                                </div>
+                              )}
+                            </td>
                             {role !== 'guest' && (
                               <td className="px-3 py-2 text-right">
                                 {onRemoveEnrollment && (

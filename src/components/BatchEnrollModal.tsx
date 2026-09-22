@@ -21,7 +21,7 @@ import {
   ChevronDown,
   ChevronUp
 } from 'lucide-react';
-import { Student, ActivityGroup, Enrollment, DismissalMethod } from '../types';
+import { Student, ActivityGroup, Enrollment, DismissalMethod, DISMISSAL_METHODS } from '../types';
 import { 
   downloadGroupEnrollmentSampleExcel, 
   downloadGroupEnrollmentSampleCsv, 
@@ -42,8 +42,6 @@ interface BatchEnrollModalProps {
     newStudentsToCreate?: Student[]
   ) => void;
 }
-
-const DISMISSAL_METHODS: DismissalMethod[] = ['自行放學', '家長接送', '課後託管班', '校車', '留校', '其他'];
 
 export const BatchEnrollModal: React.FC<BatchEnrollModalProps> = ({
   isOpen,

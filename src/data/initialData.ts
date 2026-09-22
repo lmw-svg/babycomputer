@@ -571,8 +571,8 @@ export const INITIAL_ENROLLMENTS: Enrollment[] = [
   // M001 合唱團校隊 (星期一)
   { id: 'en-m001-1a01', groupId: 'M001', studentId: '1A01', dismissalMethod: '家長接送' },
   { id: 'en-m001-2a01', groupId: 'M001', studentId: '2A01', dismissalMethod: '家長接送' },
-  { id: 'en-m001-3a01', groupId: 'M001', studentId: '3A01', dismissalMethod: '校車' },
-  { id: 'en-m001-4b18', groupId: 'M001', studentId: '4B18', dismissalMethod: '課後託管班' },
+  { id: 'en-m001-3a01', groupId: 'M001', studentId: '3A01', dismissalMethod: '家長接送' },
+  { id: 'en-m001-4b18', groupId: 'M001', studentId: '4B18', dismissalMethod: '返回課後託管班' },
   { id: 'en-m001-5a13', groupId: 'M001', studentId: '5A13', dismissalMethod: '自行放學' },
 
   // ST002 奧數培訓隊 (星期一)
@@ -582,9 +582,9 @@ export const INITIAL_ENROLLMENTS: Enrollment[] = [
 
   // S002 光輝樂隊校隊 (星期二)
   { id: 'en-s002-4b11', groupId: 'S002', studentId: '4B11', dismissalMethod: '家長接送' },
-  { id: 'en-s002-4b18', groupId: 'S002', studentId: '4B18', dismissalMethod: '課後託管班' },
+  { id: 'en-s002-4b18', groupId: 'S002', studentId: '4B18', dismissalMethod: '返回課後託管班' },
   { id: 'en-s002-4c05', groupId: 'S002', studentId: '4C05', dismissalMethod: '家長接送' },
-  { id: 'en-s002-5a03', groupId: 'S002', studentId: '5A03', dismissalMethod: '課後託管班' },
+  { id: 'en-s002-5a03', groupId: 'S002', studentId: '5A03', dismissalMethod: '返回課後託管班' },
   { id: 'en-s002-5a13', groupId: 'S002', studentId: '5A13', dismissalMethod: '家長接送' },
   { id: 'en-s002-5b09', groupId: 'S002', studentId: '5B09', dismissalMethod: '自行放學' },
   { id: 'en-s002-5b18', groupId: 'S002', studentId: '5B18', dismissalMethod: '自行放學' },
@@ -600,7 +600,7 @@ export const INITIAL_ENROLLMENTS: Enrollment[] = [
 
   // S003 中文讀寫樂小組(四年級) (星期二)
   { id: 'en-s003-4b11', groupId: 'S003', studentId: '4B11', dismissalMethod: '家長接送' },
-  { id: 'en-s003-4b18', groupId: 'S003', studentId: '4B18', dismissalMethod: '課後託管班' },
+  { id: 'en-s003-4b18', groupId: 'S003', studentId: '4B18', dismissalMethod: '返回課後託管班' },
   { id: 'en-s003-4c05', groupId: 'S003', studentId: '4C05', dismissalMethod: '家長接送' },
 
   // M002a 古箏初級 (星期二)
@@ -635,7 +635,7 @@ export const INITIAL_ENROLLMENTS: Enrollment[] = [
   { id: 'en-st001-6c07', groupId: 'ST001', studentId: '6C07', dismissalMethod: '自行放學' },
 
   // M004 中國鼓校隊 (星期四)
-  { id: 'en-m004-4b18', groupId: 'M004', studentId: '4B18', dismissalMethod: '課後託管班' },
+  { id: 'en-m004-4b18', groupId: 'M004', studentId: '4B18', dismissalMethod: '返回課後託管班' },
   { id: 'en-m004-5a03', groupId: 'M004', studentId: '5A03', dismissalMethod: '自行放學' },
   { id: 'en-m004-6c02', groupId: 'M004', studentId: '6C02', dismissalMethod: '自行放學' },
 

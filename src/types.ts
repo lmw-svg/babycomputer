@@ -8,7 +8,14 @@ export type AttendanceStatus = 'P' | 'A' | 'L' | 'NA';
 // L = 請假 (Leave)
 // NA = 不適用 / 未有記錄 (Not Applicable / Unrecorded)
 
-export type DismissalMethod = '自行放學' | '家長接送' | '課後託管班' | '校車' | '留校' | '其他';
+export type DismissalMethod = '自行放學' | '家長接送' | '返回課後託管班' | '其他';
+
+export const DISMISSAL_METHODS: DismissalMethod[] = [
+  '自行放學',
+  '家長接送',
+  '返回課後託管班',
+  '其他',
+];
 
 export interface Student {
   id: string; // 學生編別 e.g. "1A01", "4B11"
