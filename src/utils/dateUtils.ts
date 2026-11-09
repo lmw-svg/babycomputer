@@ -144,3 +144,44 @@ export function normalizeSingleDateInput(input: string): string {
 
   return trimmed;
 }
+
+/**
+ * Returns YYYY-MM-DD in local time
+ */
+export function toISODateString(date: Date): string {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
+
+/**
+ * Converts a Date to "D/M" (e.g. "8/11", "29/9")
+ */
+export function toDayMonthString(date: Date): string {
+  return `${date.getDate()}/${date.getMonth() + 1}`;
+}
+
+/**
+ * Converts a Date to Chinese WeekDay string ("星期一" ~ "星期六" or "星期日")
+ */
+export function getChineseWeekDay(date: Date): string {
+  const day = date.getDay();
+  const map: Record<number, string> = {
+    0: '星期日',
+    1: '星期一',
+    2: '星期二',
+    3: '星期三',
+    4: '星期四',
+    5: '星期五',
+    6: '星期六',
+  };
+  return map[day] || '星期一';
+}
+
+/**
+ * Formats a Date into standard Chinese calendar display e.g. "2026年11月8日"
+ */
+export function toChineseFullDateString(date: Date): string {
+  return `${date.getFullYear()}年${date.getMonth() + 1}月${date.getDate()}日`;
+}

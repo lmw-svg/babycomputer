@@ -8,10 +8,13 @@ import {
   ClipboardCheck, 
   Building2, 
   User,
-  Edit
+  Edit,
+  CalendarDays,
+  CalendarX
 } from 'lucide-react';
 import { ActivityGroup, WeekDay, UserRole } from '../types';
 import { SCHOOL_VENUES } from '../data/initialData';
+import { toISODateString, getChineseWeekDay, toChineseFullDateString } from '../utils/dateUtils';
 
 interface ScheduleViewProps {
   activityGroups: ActivityGroup[];
@@ -40,7 +43,11 @@ export const ScheduleView: React.FC<ScheduleViewProps> = ({
   onEditGroup,
 }) => {
   const [activeTab, setActiveTab] = useState<'venue' | 'timeslot' | 'daily'>('venue');
-  const [selectedDay, setSelectedDay] = useState<WeekDay>('星期二');
+  const [selectedDay, setSelectedDay] = useState<WeekDay | '星期日'>(() => {
+    const wDay = getChineseWeekDay(new Date());
+    return wDay === '星期日' ? '星期一' : (wDay as WeekDay);
+  });
+  const [selectedDateISO, setSelectedDateISO] = useState<string>(() => toISODateString(new Date()));
   const [venueSearch, setVenueSearch] = useState('');
 
   // Dynamically collect all venues including any custom ones created
@@ -57,7 +64,8 @@ export const ScheduleView: React.FC<ScheduleViewProps> = ({
 
   // Daily activities
   const dailyActivities = useMemo(() => {
-    return activityGroups.filter(g => g.days.includes(selectedDay));
+    if (selectedDay === '星期日') return [];
+    return activityGroups.filter(g => g.days.includes(selectedDay as WeekDay));
   }, [activityGroups, selectedDay]);
 
   return (
@@ -299,6 +307,49 @@ export const ScheduleView: React.FC<ScheduleViewProps> = ({
       {/* --- 3. 星期一至星期六 每日分頁 (Daily View) --- */}
       {activeTab === 'daily' && (
         <div className="space-y-4">
+          {/* Date Picker & Quick Actions Bar */}
+          <div className="bg-white p-3 rounded-xl border border-[#E5E2DA] flex flex-wrap items-center justify-between gap-3 shadow-xs">
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="text-xs font-bold text-[#4A4A42] flex items-center gap-1.5">
+                <CalendarDays className="w-4 h-4 text-[#485945]" />
+                <span>按日期查詢：</span>
+              </span>
+              <input
+                type="date"
+                value={selectedDateISO}
+                onChange={(e) => {
+                  if (e.target.value) {
+                    setSelectedDateISO(e.target.value);
+                    const [y, m, d] = e.target.value.split('-').map(Number);
+                    const dateObj = new Date(y, m - 1, d);
+                    const wDay = getChineseWeekDay(dateObj);
+                    setSelectedDay(wDay as any);
+                  }
+                }}
+                className="text-xs font-mono font-bold text-[#2C2C2A] bg-[#FAF9F5] px-2.5 py-1.5 rounded-lg border border-[#DDDCD4] focus:ring-1 focus:ring-[#485945]"
+              />
+              <button
+                type="button"
+                onClick={() => {
+                  const now = new Date();
+                  setSelectedDateISO(toISODateString(now));
+                  const wDay = getChineseWeekDay(now);
+                  setSelectedDay(wDay as any);
+                }}
+                className="px-2.5 py-1.5 rounded-lg text-xs font-semibold bg-[#FAF9F5] border border-[#DDDCD4] hover:bg-[#EFEFEA] text-[#2C2C2A] transition-colors"
+              >
+                今天
+              </button>
+            </div>
+
+            <div className="text-xs text-[#78786E]">
+              目前選擇：<strong className="text-[#2C2C2A]">{selectedDay}</strong>
+              {selectedDay === '星期日' && (
+                <span className="ml-1 text-[#8C3A3A] font-bold">（非學校活動日）</span>
+              )}
+            </div>
+          </div>
+
           {/* Day selection pills */}
           <div className="flex flex-wrap gap-2">
             {WEEKDAYS.map((d) => {
@@ -328,14 +379,23 @@ export const ScheduleView: React.FC<ScheduleViewProps> = ({
           {/* List of activities for the selected day */}
           <div className="bg-white rounded-xl border border-[#E5E2DA] overflow-hidden shadow-xs">
             <div className="px-4 py-3 bg-[#FAF9F5] border-b border-[#E5E2DA] flex items-center justify-between">
-              <h3 className="text-sm font-bold text-[#2C2C2A]">
-                {selectedDay} 課外活動小組名單與安排 (共 {dailyActivities.length} 組)
+              <h3 className="text-sm font-bold text-[#2C2C2A] flex items-center gap-2">
+                <span>{selectedDay} 課外活動小組名單與安排</span>
+                <span className="text-xs font-normal text-[#78786E]">
+                  (共 {dailyActivities.length} 組)
+                </span>
               </h3>
             </div>
 
             {dailyActivities.length === 0 ? (
-              <div className="text-center py-12 text-[#99998E] text-xs">
-                {selectedDay} 暫無任何安排的活動
+              <div className="text-center py-12 px-4 space-y-2">
+                <div className="flex items-center justify-center gap-2">
+                  <CalendarX className="w-5 h-5 text-[#88887E]" />
+                  <span className="text-sm font-bold text-[#2C2C2A]">是日沒有活動</span>
+                </div>
+                <p className="text-xs text-[#78786E] max-w-md mx-auto">
+                  {selectedDay} 暫無任何安排的課外活動。您可以點選上方「星期一」至「星期六」按鈕，或切換至「場地表」與「時段活動表」查閱全校場地及時段活動分佈。
+                </p>
               </div>
             ) : (
               <div className="divide-y divide-[#EAE7DE]">

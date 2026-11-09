@@ -1,4 +1,4 @@
-import React, { useMemo } from 'react';
+import React, { useState, useMemo } from 'react';
 import { 
   Users, 
   Calendar, 
@@ -9,14 +9,26 @@ import {
   Clock, 
   MapPin, 
   ChevronRight, 
+  ChevronLeft,
   Sparkles,
   ArrowUpRight,
   Bookmark,
   UserCheck,
   Plus,
-  Cloud
+  Cloud,
+  CalendarDays,
+  CalendarX,
+  Filter,
+  Layers,
+  Info
 } from 'lucide-react';
 import { AppDataState, NavigationTab, UserRole, WeekDay } from '../types';
+import { 
+  toISODateString, 
+  toDayMonthString, 
+  getChineseWeekDay, 
+  toChineseFullDateString 
+} from '../utils/dateUtils';
 
 interface DashboardProps {
   data: AppDataState;
@@ -37,25 +49,148 @@ export const Dashboard: React.FC<DashboardProps> = ({
 }) => {
   const { students, activityGroups, enrollments, attendanceRecords } = data;
 
-  // Determine current day of week in Chinese
-  const todayWeekDay: WeekDay = useMemo(() => {
-    const dayIndex = new Date().getDay(); // 0 = Sunday, 1 = Monday...
-    const map: Record<number, WeekDay> = {
-      1: '星期一',
-      2: '星期二',
-      3: '星期三',
-      4: '星期四',
-      5: '星期五',
-      6: '星期六',
-      0: '星期一',
-    };
-    return map[dayIndex] || '星期二';
-  }, []);
+  // Selected date for "按日期今天活動安排" (defaults to today)
+  const [selectedDate, setSelectedDate] = useState<Date>(() => new Date());
+  // Mode: 'date' (按日期比對) or 'term1-all' (全校活動總覽)
+  const [scheduleViewMode, setScheduleViewMode] = useState<'date' | 'term1-all'>('date');
+  // Weekday filter for full roster
+  const [term1DayFilter, setTerm1DayFilter] = useState<string>('全部');
 
-  // Today's activities
-  const todayActivities = useMemo(() => {
-    return activityGroups.filter(g => g.days.includes(todayWeekDay));
-  }, [activityGroups, todayWeekDay]);
+  // Formatted date values
+  const selectedDateISO = useMemo(() => toISODateString(selectedDate), [selectedDate]);
+  const selectedWeekDay = useMemo(() => getChineseWeekDay(selectedDate), [selectedDate]);
+  const selectedDayMonth = useMemo(() => toDayMonthString(selectedDate), [selectedDate]);
+  const selectedFullDateStr = useMemo(() => toChineseFullDateString(selectedDate), [selectedDate]);
+  
+  const isToday = useMemo(() => {
+    return toISODateString(selectedDate) === toISODateString(new Date());
+  }, [selectedDate]);
+
+  // Collect all unique session dates for Term 1 across all activity groups
+  const allTerm1SessionDates = useMemo(() => {
+    const datesSet = new Set<string>();
+    activityGroups.forEach(g => {
+      if (Array.isArray(g.sessionDates)) {
+        g.sessionDates.forEach(d => {
+          if (d && d.includes('/')) datesSet.add(d.trim());
+        });
+      }
+    });
+    return Array.from(datesSet).sort((a, b) => {
+      const [da, ma] = a.split('/').map(Number);
+      const [db, mb] = b.split('/').map(Number);
+      const orderMonth = (m: number) => (m >= 8 ? m : m + 12);
+      if (orderMonth(ma) !== orderMonth(mb)) return orderMonth(ma) - orderMonth(mb);
+      return da - db;
+    });
+  }, [activityGroups]);
+
+  // Activities for selectedDate (matched by sessionDates or weekday if daily/after-school care)
+  const activitiesForSelectedDate = useMemo(() => {
+    if (selectedWeekDay === '星期日') return [];
+    const dm = selectedDayMonth;
+    const dmParts = dm.split('/');
+    const dmAlt = dmParts.length === 2 ? `${parseInt(dmParts[0], 10)}/${parseInt(dmParts[1], 10)}` : dm;
+
+    return activityGroups.filter(g => {
+      // 1. Session date explicitly matches
+      if (Array.isArray(g.sessionDates) && g.sessionDates.length > 0) {
+        const matchesDate = g.sessionDates.some(sd => {
+          if (!sd) return false;
+          const cleaned = sd.trim();
+          if (cleaned === dm || cleaned === dmAlt) return true;
+          const parts = cleaned.split('/');
+          if (parts.length === 2) {
+            return `${parseInt(parts[0], 10)}/${parseInt(parts[1], 10)}` === dmAlt;
+          }
+          return false;
+        });
+        if (matchesDate) return true;
+      }
+
+      // 2. Daily after-school care or full term weekday groups
+      const isDailyCare = g.category === '託管班' || (g.datesText && (g.datesText.includes('全學年') || g.datesText.includes('逢星期')));
+      if (isDailyCare && g.days.includes(selectedWeekDay as WeekDay)) {
+        return true;
+      }
+
+      // 3. Fallback: if sessionDates empty, check if group runs on this weekday
+      if ((!g.sessionDates || g.sessionDates.length === 0) && g.days.includes(selectedWeekDay as WeekDay)) {
+        return true;
+      }
+
+      return false;
+    });
+  }, [activityGroups, selectedWeekDay, selectedDayMonth]);
+
+  // Full Term 1 groups filtered by day tab
+  const filteredTerm1Groups = useMemo(() => {
+    if (term1DayFilter === '全部') return activityGroups;
+    return activityGroups.filter(g => g.days.includes(term1DayFilter as WeekDay));
+  }, [activityGroups, term1DayFilter]);
+
+  // Quick date jump helpers
+  const handleJumpToToday = () => {
+    setSelectedDate(new Date());
+    setScheduleViewMode('date');
+  };
+
+  const handleJumpToTomorrow = () => {
+    const d = new Date();
+    d.setDate(d.getDate() + 1);
+    setSelectedDate(d);
+    setScheduleViewMode('date');
+  };
+
+  const handleShiftDay = (delta: number) => {
+    const d = new Date(selectedDate);
+    d.setDate(d.getDate() + delta);
+    setSelectedDate(d);
+    setScheduleViewMode('date');
+  };
+
+  const handleSelectSessionDate = (sessionDateStr: string) => {
+    const parts = sessionDateStr.split('/');
+    if (parts.length === 2) {
+      const day = parseInt(parts[0], 10);
+      const month = parseInt(parts[1], 10);
+      const currentYear = new Date().getFullYear();
+      // If month is Sep-Dec, year is 2026; if Jan-Jul, year might be next year 2027
+      const year = month >= 8 ? currentYear : currentYear + 1;
+      const target = new Date(year, month - 1, day);
+      setSelectedDate(target);
+      setScheduleViewMode('date');
+    }
+  };
+
+  // Jump to next date that has activities
+  const handleJumpToNextActiveDate = () => {
+    // Look ahead up to 14 days
+    for (let i = 1; i <= 14; i++) {
+      const d = new Date(selectedDate);
+      d.setDate(d.getDate() + i);
+      const wDay = getChineseWeekDay(d);
+      if (wDay === '星期日') continue;
+      const dm = toDayMonthString(d);
+      const hasAct = activityGroups.some(g => {
+        if (Array.isArray(g.sessionDates) && g.sessionDates.some(sd => sd.trim() === dm)) return true;
+        const isDaily = g.category === '託管班' || (g.datesText && g.datesText.includes('全學年'));
+        return isDaily && g.days.includes(wDay as WeekDay);
+      });
+      if (hasAct) {
+        setSelectedDate(d);
+        setScheduleViewMode('date');
+        return;
+      }
+    }
+    // Fallback: jump to next Monday
+    const d = new Date(selectedDate);
+    const day = d.getDay();
+    const daysUntilMon = day === 0 ? 1 : 8 - day;
+    d.setDate(d.getDate() + daysUntilMon);
+    setSelectedDate(d);
+    setScheduleViewMode('date');
+  };
 
   // S-Support Statistics and Follow-up checks
   const sSupportStats = useMemo(() => {
@@ -276,97 +411,492 @@ export const Dashboard: React.FC<DashboardProps> = ({
 
       {/* Main Grid: Today's Schedule & Quick Attendance */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Left Column: Today's Activity Groups */}
-        <div className="lg:col-span-2 bg-white rounded-xl border border-[#E5E2DA] p-5 shadow-xs">
-          <div className="flex items-center justify-between mb-4">
+        {/* Left Column: By-Date & Today's Activity Groups */}
+        <div className="lg:col-span-2 bg-white rounded-xl border border-[#E5E2DA] p-5 shadow-xs space-y-4">
+          
+          {/* Section Header */}
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-[#EAE7DE]">
             <div>
-              <div className="flex items-center gap-2">
-                <h2 className="text-base font-bold text-[#2C2C2A]">今日活動安排</h2>
-                <span className="px-2.5 py-0.5 rounded-full text-xs font-bold bg-[#ECEFE9] text-[#364733] border border-[#CCD8C7]">
-                  {todayWeekDay}
+              <div className="flex items-center gap-2 flex-wrap">
+                <CalendarDays className="w-5 h-5 text-[#485945]" />
+                <h2 className="text-base font-bold text-[#2C2C2A]">按日期今天活動安排</h2>
+                <span className="px-2.5 py-0.5 rounded-full text-xs font-bold bg-[#FAF9F5] text-[#2C2C2A] border border-[#DDDCD4]">
+                  {selectedFullDateStr} · {selectedWeekDay}
                 </span>
+                {isToday && (
+                  <span className="px-2 py-0.5 rounded-md text-[10px] font-bold bg-[#485945] text-white shadow-2xs">
+                    今天
+                  </span>
+                )}
               </div>
-              <p className="text-xs text-[#78786E] mt-0.5">共 {todayActivities.length} 個活動小組於今日開展</p>
+              <p className="text-xs text-[#78786E] mt-1">
+                {scheduleViewMode === 'date' ? (
+                  activitiesForSelectedDate.length > 0 
+                    ? `按日期查詢：此日共有 ${activitiesForSelectedDate.length} 個活動小組開展` 
+                    : '按日期查詢：是日沒有活動，已自動為您展示活動安排總覽'
+                ) : (
+                  `所有活動小組名冊與堂數安排 (共 ${activityGroups.length} 組)`
+                )}
+              </p>
             </div>
-            <button
-              id="dash-view-full-schedule"
-              onClick={() => onNavigateTab('schedule')}
-              className="text-xs font-semibold text-[#485945] hover:text-[#2C382A] flex items-center gap-1"
-            >
-              <span>完整時程場地表</span>
-              <ArrowUpRight className="w-3.5 h-3.5" />
-            </button>
+
+            <div className="flex items-center gap-2 shrink-0">
+              <button
+                id="dash-view-full-schedule"
+                onClick={() => onNavigateTab('schedule')}
+                className="text-xs font-semibold text-[#485945] hover:text-[#2C382A] flex items-center gap-1"
+              >
+                <span>場地與時程總表</span>
+                <ArrowUpRight className="w-3.5 h-3.5" />
+              </button>
+            </div>
           </div>
 
-          {todayActivities.length === 0 ? (
-            <div className="text-center py-10 border border-dashed border-[#DDDCD4] rounded-xl bg-[#FAF9F5]">
-              <Calendar className="w-8 h-8 text-[#99998E] mx-auto mb-2" />
-              <p className="text-sm font-medium text-[#4A4A42]">今日暫無排定的課外活動</p>
-              <p className="text-xs text-[#78786E] mt-1">可切換至「場地與時程表」檢視其他星期的活動安排</p>
-            </div>
-          ) : (
-            <div className="space-y-3">
-              {todayActivities.map((group) => {
-                const groupEnrolls = enrollments.filter(e => e.groupId === group.id);
-                return (
-                  <div
-                    key={group.id}
-                    className="p-4 rounded-xl border border-[#EAE7DE] bg-[#FAF9F5] hover:bg-white hover:border-[#CCD8C7] hover:shadow-xs transition-all flex flex-col sm:flex-row sm:items-center justify-between gap-3"
+          {/* Date Selector Toolbar */}
+          <div className="bg-[#FAF9F5] p-3 rounded-xl border border-[#E5E2DA] space-y-2.5">
+            <div className="flex flex-wrap items-center justify-between gap-2.5">
+              
+              {/* Left: Quick Date Buttons & Date Input */}
+              <div className="flex flex-wrap items-center gap-1.5">
+                <button
+                  id="btn-date-today"
+                  onClick={handleJumpToToday}
+                  className={`px-2.5 py-1.5 rounded-lg text-xs font-bold transition-all ${
+                    isToday
+                      ? 'bg-[#485945] text-white shadow-xs'
+                      : 'bg-white border border-[#DDDCD4] text-[#4A4A42] hover:bg-[#EFEFEA]'
+                  }`}
+                >
+                  今天
+                </button>
+                <button
+                  id="btn-date-tomorrow"
+                  onClick={handleJumpToTomorrow}
+                  className="px-2.5 py-1.5 rounded-lg text-xs font-medium bg-white border border-[#DDDCD4] text-[#4A4A42] hover:bg-[#EFEFEA] transition-colors"
+                >
+                  明天
+                </button>
+
+                <div className="inline-flex items-center rounded-lg border border-[#DDDCD4] bg-white overflow-hidden shadow-2xs">
+                  <button
+                    onClick={() => handleShiftDay(-1)}
+                    className="p-1.5 text-[#78786E] hover:bg-[#EFEFEA] transition-colors"
+                    title="前一日"
                   >
-                    <div className="space-y-1">
-                      <div className="flex items-center gap-2">
-                        <span className="font-mono text-xs font-bold px-2 py-0.5 bg-[#EAE8DE] text-[#2C2C2A] rounded-md">
-                          {group.id}
-                        </span>
-                        <h4 className="text-sm font-bold text-[#2C2C2A]">{group.name}</h4>
-                        {group.isSSupportGroup && (
-                          <span className="px-2 py-0.5 rounded-full text-[11px] font-semibold bg-[#FDF6ED] text-[#8C521E] border border-[#EED7B8]">
-                            S支援
-                          </span>
-                        )}
-                        <span className="px-2 py-0.5 rounded-full text-[11px] font-medium bg-[#EFEFEA] text-[#606056]">
-                          {group.category}
-                        </span>
+                    <ChevronLeft className="w-3.5 h-3.5" />
+                  </button>
+                  <input
+                    type="date"
+                    id="dash-calendar-picker"
+                    value={selectedDateISO}
+                    onChange={(e) => {
+                      if (e.target.value) {
+                        const [y, m, d] = e.target.value.split('-').map(Number);
+                        setSelectedDate(new Date(y, m - 1, d));
+                        setScheduleViewMode('date');
+                      }
+                    }}
+                    className="text-xs font-mono font-bold text-[#2C2C2A] bg-transparent px-1.5 py-1 border-x border-[#DDDCD4] focus:outline-none focus:bg-[#FAF9F5] cursor-pointer"
+                  />
+                  <button
+                    onClick={() => handleShiftDay(1)}
+                    className="p-1.5 text-[#78786E] hover:bg-[#EFEFEA] transition-colors"
+                    title="下一日"
+                  >
+                    <ChevronRight className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+              </div>
+
+              {/* Right: View Mode Toggle */}
+              <div className="flex items-center bg-[#EFEFEA] p-0.5 rounded-lg border border-[#DDDCD4]">
+                <button
+                  id="mode-date-view-btn"
+                  onClick={() => setScheduleViewMode('date')}
+                  className={`px-2.5 py-1 rounded-md text-xs font-bold transition-all ${
+                    scheduleViewMode === 'date'
+                      ? 'bg-white text-[#485945] shadow-xs'
+                      : 'text-[#78786E] hover:text-[#2C2C2A]'
+                  }`}
+                >
+                  按日期活動 ({activitiesForSelectedDate.length})
+                </button>
+                <button
+                  id="mode-term1-view-btn"
+                  onClick={() => setScheduleViewMode('term1-all')}
+                  className={`px-2.5 py-1 rounded-md text-xs font-bold transition-all flex items-center gap-1 ${
+                    scheduleViewMode === 'term1-all'
+                      ? 'bg-white text-[#485945] shadow-xs'
+                      : 'text-[#78786E] hover:text-[#2C2C2A]'
+                  }`}
+                >
+                  <Layers className="w-3 h-3" />
+                  <span>全校活動總覽 ({activityGroups.length})</span>
+                </button>
+              </div>
+            </div>
+
+            {/* Quick Session Dates Pills */}
+            <div className="flex items-center gap-1.5 overflow-x-auto pb-0.5 pt-1 border-t border-[#EAE7DE] scrollbar-none">
+              <span className="text-[11px] font-bold text-[#78786E] shrink-0 flex items-center gap-1">
+                <Clock className="w-3 h-3 text-[#99998E]" /> 快捷跳至活動日：
+              </span>
+              {allTerm1SessionDates.slice(0, 14).map((sDate) => {
+                const isSelected = selectedDayMonth === sDate;
+                return (
+                  <button
+                    key={sDate}
+                    onClick={() => handleSelectSessionDate(sDate)}
+                    className={`px-2 py-0.5 rounded-md text-[11px] font-mono whitespace-nowrap transition-colors border ${
+                      isSelected
+                        ? 'bg-[#485945] text-white border-[#485945] font-bold shadow-2xs'
+                        : 'bg-white text-[#4A4A42] border-[#DDDCD4] hover:bg-[#EAE8DE]'
+                    }`}
+                  >
+                    {sDate}
+                  </button>
+                );
+              })}
+              {allTerm1SessionDates.length > 14 && (
+                <span className="text-[10px] text-[#99998E] shrink-0">...共 {allTerm1SessionDates.length} 個堂數日</span>
+              )}
+            </div>
+          </div>
+
+          {/* Schedule View Mode: 1. By Date (or fallback when empty) */}
+          {scheduleViewMode === 'date' && (
+            <div>
+              {activitiesForSelectedDate.length === 0 ? (
+                /* Empty state when NO activities on selected date: Displays 是日沒有活動 */
+                <div className="space-y-4">
+                  <div className="p-4 rounded-xl border border-[#DDDCD4] bg-[#FAF9F5] flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-2xs">
+                    <div className="flex items-start sm:items-center gap-3">
+                      <div className="w-10 h-10 rounded-xl bg-[#EFEFEA] text-[#78786E] flex items-center justify-center shrink-0 mt-0.5 sm:mt-0">
+                        <CalendarX className="w-5 h-5 text-[#88887E]" />
                       </div>
-                      
-                      <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-[#78786E]">
-                        <span className="flex items-center gap-1">
-                          <Clock className="w-3.5 h-3.5 text-[#99998E]" />
-                          {group.startTime} - {group.endTime}
-                        </span>
-                        <span className="flex items-center gap-1">
-                          <MapPin className="w-3.5 h-3.5 text-[#99998E]" />
-                          {group.venue}
-                        </span>
-                        <span className="flex items-center gap-1">
-                          <UserCheck className="w-3.5 h-3.5 text-[#99998E]" />
-                          {group.teacher}
-                        </span>
-                        <span>
-                          學生數：<strong className="text-[#2C2C2A]">{groupEnrolls.length}</strong> 人
-                        </span>
+                      <div>
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <span className="text-sm font-bold text-[#2C2C2A]">是日沒有活動</span>
+                        </div>
+                        <p className="text-xs text-[#78786E] mt-0.5 leading-relaxed">
+                          {selectedFullDateStr}（{selectedWeekDay}）未有排定活動。下方已為您自動展開<strong>「活動安排總覽」</strong>，方便隨時查閱各組上課時間、地點與負責老師。
+                        </p>
                       </div>
                     </div>
-
-                    <div className="flex items-center gap-2 shrink-0">
+                    <div className="flex items-center gap-2 shrink-0 self-end sm:self-auto">
                       <button
-                        onClick={() => onStartRollCall(group.id)}
-                        className="px-3 py-1.5 rounded-lg bg-[#485945] hover:bg-[#3B4A3D] text-white text-xs font-semibold transition-colors flex items-center gap-1 shadow-xs"
+                        onClick={handleJumpToNextActiveDate}
+                        className="px-3 py-1.5 rounded-lg bg-[#485945] hover:bg-[#3D4C3A] text-white text-xs font-semibold transition-colors flex items-center gap-1 shadow-xs"
                       >
-                        <ClipboardCheck className="w-4 h-4" />
-                        <span>點名</span>
-                      </button>
-                      <button
-                        onClick={() => onNavigateTab('share')}
-                        className="px-2.5 py-1.5 rounded-lg bg-[#EFEFEA] border border-[#DDDCD4] hover:bg-[#E5E5DD] text-[#333330] text-xs font-medium transition-colors"
-                        title="列印 / 分享小組名單"
-                      >
-                        分享版
+                        <CalendarDays className="w-3.5 h-3.5" />
+                        <span>跳至下一個活動日</span>
                       </button>
                     </div>
                   </div>
-                );
-              })}
+
+                  {/* Activity Groups Overview List */}
+                  <div className="space-y-3 pt-1">
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-1 border-b border-[#EAE7DE]">
+                      <div className="flex items-center gap-2">
+                        <Layers className="w-4 h-4 text-[#485945]" />
+                        <h3 className="text-sm font-bold text-[#2C2C2A]">
+                          活動安排總覽 (共 {filteredTerm1Groups.length} 組)
+                        </h3>
+                      </div>
+
+                      {/* Day filter pills */}
+                      <div className="flex items-center gap-1 overflow-x-auto pb-0.5 scrollbar-none">
+                        {['全部', '星期一', '星期二', '星期三', '星期四', '星期五', '星期六'].map(d => {
+                          const isSel = term1DayFilter === d;
+                          return (
+                            <button
+                              key={d}
+                              onClick={() => setTerm1DayFilter(d)}
+                              className={`px-2 py-0.5 rounded-md text-[11px] font-medium transition-colors ${
+                                isSel
+                                  ? 'bg-[#485945] text-white font-bold'
+                                  : 'bg-[#EFEFEA] text-[#606056] hover:bg-[#E5E2DA]'
+                              }`}
+                            >
+                              {d === '全部' ? '全部' : d.replace('星期', '周')}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+
+                    <div className="space-y-2.5 max-h-[550px] overflow-y-auto pr-1">
+                      {filteredTerm1Groups.map((group) => {
+                        const groupEnrolls = enrollments.filter(e => e.groupId === group.id);
+                        return (
+                          <div
+                            key={group.id}
+                            className="p-3.5 rounded-xl border border-[#EAE7DE] bg-[#FAF9F5] hover:bg-white hover:border-[#CCD8C7] hover:shadow-xs transition-all flex flex-col sm:flex-row sm:items-center justify-between gap-3"
+                          >
+                            <div className="space-y-1">
+                              <div className="flex items-center gap-2 flex-wrap">
+                                <span className="font-mono text-xs font-bold px-2 py-0.5 bg-[#EAE8DE] text-[#2C2C2A] rounded-md">
+                                  {group.id}
+                                </span>
+                                <h4 className="text-sm font-bold text-[#2C2C2A]">{group.name}</h4>
+                                {group.isSSupportGroup && (
+                                  <span className="px-2 py-0.5 rounded-full text-[11px] font-semibold bg-[#FDF6ED] text-[#8C521E] border border-[#EED7B8]">
+                                    S支援
+                                  </span>
+                                )}
+                                <span className="px-2 py-0.5 rounded-full text-[11px] font-medium bg-[#EFEFEA] text-[#606056]">
+                                  {group.category}
+                                </span>
+                                <span className="px-2 py-0.5 rounded-full text-[11px] font-bold bg-[#ECEFE9] text-[#364733] border border-[#CCD8C7]">
+                                  {group.days.join('、')}
+                                </span>
+                              </div>
+
+                              <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-[#78786E]">
+                                <span className="flex items-center gap-1 font-mono">
+                                  <Clock className="w-3.5 h-3.5 text-[#99998E]" />
+                                  {group.startTime} - {group.endTime}
+                                </span>
+                                <span className="flex items-center gap-1">
+                                  <MapPin className="w-3.5 h-3.5 text-[#99998E]" />
+                                  {group.venue}
+                                </span>
+                                <span className="flex items-center gap-1">
+                                  <UserCheck className="w-3.5 h-3.5 text-[#99998E]" />
+                                  {group.teacher}
+                                </span>
+                                <span>
+                                  學生：<strong className="text-[#2C2C2A]">{groupEnrolls.length}</strong> / {group.maxCapacity || 35} 人
+                                </span>
+                              </div>
+
+                              {group.datesText && (
+                                <div className="text-[11px] text-[#88887E] pt-0.5">
+                                  <span className="font-semibold text-[#66665E]">堂數日程：</span>
+                                  <span>{group.datesText}</span>
+                                </div>
+                              )}
+                            </div>
+
+                            <div className="flex items-center gap-2 shrink-0">
+                              <button
+                                onClick={() => onStartRollCall(group.id)}
+                                className="px-3 py-1.5 rounded-lg bg-[#485945] hover:bg-[#3B4A3D] text-white text-xs font-semibold transition-colors flex items-center gap-1 shadow-xs"
+                              >
+                                <ClipboardCheck className="w-3.5 h-3.5" />
+                                <span>點名</span>
+                              </button>
+                              <button
+                                onClick={() => onNavigateTab('share')}
+                                className="px-2.5 py-1.5 rounded-lg bg-[#EFEFEA] border border-[#DDDCD4] hover:bg-[#E5E5DD] text-[#333330] text-xs font-medium transition-colors"
+                              >
+                                分享版
+                              </button>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                </div>
+              ) : (
+                /* List of activities active on selectedDate */
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between text-xs text-[#78786E] px-1">
+                    <span>
+                      {selectedFullDateStr}（{selectedWeekDay}）共安排 <strong>{activitiesForSelectedDate.length}</strong> 個小組活動
+                    </span>
+                    <button
+                      onClick={() => setScheduleViewMode('term1-all')}
+                      className="text-[#485945] hover:underline font-semibold flex items-center gap-1"
+                    >
+                      <Layers className="w-3.5 h-3.5" />
+                      <span>查看全校活動總覽</span>
+                    </button>
+                  </div>
+
+                  <div className="space-y-3">
+                    {activitiesForSelectedDate.map((group) => {
+                      const groupEnrolls = enrollments.filter(e => e.groupId === group.id);
+                      // Check which session number this is if sessionDates available
+                      const sessionIdx = Array.isArray(group.sessionDates)
+                        ? group.sessionDates.findIndex(d => d.trim() === selectedDayMonth)
+                        : -1;
+
+                      return (
+                        <div
+                          key={group.id}
+                          className="p-4 rounded-xl border border-[#CCD8C7] bg-[#FAF9F5] hover:bg-white hover:border-[#485945] hover:shadow-xs transition-all flex flex-col sm:flex-row sm:items-center justify-between gap-3"
+                        >
+                          <div className="space-y-1">
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <span className="font-mono text-xs font-bold px-2 py-0.5 bg-[#EAE8DE] text-[#2C2C2A] rounded-md">
+                                {group.id}
+                              </span>
+                              <h4 className="text-sm font-bold text-[#2C2C2A]">{group.name}</h4>
+                              {sessionIdx >= 0 && (
+                                <span className="px-2 py-0.5 rounded-full text-[11px] font-bold bg-[#EEF5EF] text-[#2C5E32] border border-[#D0E4D3]">
+                                  第 {sessionIdx + 1} 堂 ({selectedDayMonth})
+                                </span>
+                              )}
+                              {group.isSSupportGroup && (
+                                <span className="px-2 py-0.5 rounded-full text-[11px] font-semibold bg-[#FDF6ED] text-[#8C521E] border border-[#EED7B8]">
+                                  S支援
+                                </span>
+                              )}
+                              <span className="px-2 py-0.5 rounded-full text-[11px] font-medium bg-[#EFEFEA] text-[#606056]">
+                                {group.category}
+                              </span>
+                            </div>
+                            
+                            <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-[#78786E]">
+                              <span className="flex items-center gap-1 font-mono">
+                                <Clock className="w-3.5 h-3.5 text-[#99998E]" />
+                                {group.startTime} - {group.endTime}
+                              </span>
+                              <span className="flex items-center gap-1">
+                                <MapPin className="w-3.5 h-3.5 text-[#99998E]" />
+                                {group.venue}
+                              </span>
+                              <span className="flex items-center gap-1">
+                                <UserCheck className="w-3.5 h-3.5 text-[#99998E]" />
+                                {group.teacher}
+                              </span>
+                              <span>
+                                學生數：<strong className="text-[#2C2C2A]">{groupEnrolls.length}</strong> 人
+                              </span>
+                            </div>
+                          </div>
+
+                          <div className="flex items-center gap-2 shrink-0">
+                            <button
+                              onClick={() => onStartRollCall(group.id)}
+                              className="px-3.5 py-1.5 rounded-lg bg-[#485945] hover:bg-[#3B4A3D] text-white text-xs font-semibold transition-colors flex items-center gap-1 shadow-xs"
+                            >
+                              <ClipboardCheck className="w-4 h-4" />
+                              <span>點名</span>
+                            </button>
+                            <button
+                              onClick={() => onNavigateTab('share')}
+                              className="px-2.5 py-1.5 rounded-lg bg-[#EFEFEA] border border-[#DDDCD4] hover:bg-[#E5E5DD] text-[#333330] text-xs font-medium transition-colors"
+                              title="列印 / 分享小組名單"
+                            >
+                              分享版
+                            </button>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Schedule View Mode: 2. Full Roster View */}
+          {scheduleViewMode === 'term1-all' && (
+            <div className="space-y-3">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-2 border-b border-[#EAE7DE]">
+                <div className="flex items-center gap-2">
+                  <Layers className="w-4 h-4 text-[#485945]" />
+                  <h3 className="text-sm font-bold text-[#2C2C2A]">
+                    活動安排總覽 (共 {filteredTerm1Groups.length} 組)
+                  </h3>
+                </div>
+
+                {/* Day filter pills */}
+                <div className="flex items-center gap-1 overflow-x-auto pb-0.5 scrollbar-none">
+                  {['全部', '星期一', '星期二', '星期三', '星期四', '星期五', '星期六'].map(d => {
+                    const isSel = term1DayFilter === d;
+                    return (
+                      <button
+                        key={d}
+                        onClick={() => setTerm1DayFilter(d)}
+                        className={`px-2.5 py-1 rounded-md text-xs font-medium transition-colors ${
+                          isSel
+                            ? 'bg-[#485945] text-white font-bold'
+                            : 'bg-[#EFEFEA] text-[#606056] hover:bg-[#E5E2DA]'
+                        }`}
+                      >
+                        {d}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
+              <div className="space-y-2.5 max-h-[550px] overflow-y-auto pr-1">
+                {filteredTerm1Groups.map((group) => {
+                  const groupEnrolls = enrollments.filter(e => e.groupId === group.id);
+                  return (
+                    <div
+                      key={group.id}
+                      className="p-3.5 rounded-xl border border-[#EAE7DE] bg-[#FAF9F5] hover:bg-white hover:border-[#CCD8C7] hover:shadow-xs transition-all flex flex-col sm:flex-row sm:items-center justify-between gap-3"
+                    >
+                      <div className="space-y-1">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <span className="font-mono text-xs font-bold px-2 py-0.5 bg-[#EAE8DE] text-[#2C2C2A] rounded-md">
+                            {group.id}
+                          </span>
+                          <h4 className="text-sm font-bold text-[#2C2C2A]">{group.name}</h4>
+                          {group.isSSupportGroup && (
+                            <span className="px-2 py-0.5 rounded-full text-[11px] font-semibold bg-[#FDF6ED] text-[#8C521E] border border-[#EED7B8]">
+                              S支援
+                            </span>
+                          )}
+                          <span className="px-2 py-0.5 rounded-full text-[11px] font-medium bg-[#EFEFEA] text-[#606056]">
+                            {group.category}
+                          </span>
+                          <span className="px-2 py-0.5 rounded-full text-[11px] font-bold bg-[#ECEFE9] text-[#364733] border border-[#CCD8C7]">
+                            {group.days.join('、')}
+                          </span>
+                        </div>
+
+                        <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-[#78786E]">
+                          <span className="flex items-center gap-1 font-mono">
+                            <Clock className="w-3.5 h-3.5 text-[#99998E]" />
+                            {group.startTime} - {group.endTime}
+                          </span>
+                          <span className="flex items-center gap-1">
+                            <MapPin className="w-3.5 h-3.5 text-[#99998E]" />
+                            {group.venue}
+                          </span>
+                          <span className="flex items-center gap-1">
+                            <UserCheck className="w-3.5 h-3.5 text-[#99998E]" />
+                            {group.teacher}
+                          </span>
+                          <span>
+                            學生：<strong className="text-[#2C2C2A]">{groupEnrolls.length}</strong> / {group.maxCapacity || 35} 人
+                          </span>
+                        </div>
+
+                        {group.datesText && (
+                          <div className="text-[11px] text-[#88887E] pt-0.5">
+                            <span className="font-semibold text-[#66665E]">堂數日程：</span>
+                            <span>{group.datesText}</span>
+                          </div>
+                        )}
+                      </div>
+
+                      <div className="flex items-center gap-2 shrink-0">
+                        <button
+                          onClick={() => onStartRollCall(group.id)}
+                          className="px-3 py-1.5 rounded-lg bg-[#485945] hover:bg-[#3D4A3D] text-white text-xs font-semibold transition-colors flex items-center gap-1 shadow-xs"
+                        >
+                          <ClipboardCheck className="w-3.5 h-3.5" />
+                          <span>點名</span>
+                        </button>
+                        <button
+                          onClick={() => onNavigateTab('share')}
+                          className="px-2.5 py-1.5 rounded-lg bg-[#EFEFEA] border border-[#DDDCD4] hover:bg-[#E5E5DD] text-[#333330] text-xs font-medium transition-colors"
+                        >
+                          分享版
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
             </div>
           )}
         </div>
